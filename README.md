@@ -10,6 +10,8 @@ The goal is to sync MSA content sources while reducing repetitive work. This wil
 
 # Architecture
 
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/1d0712b6-446c-4dd9-b087-de40f75d353a" />
+
 ### Slack + Bolt
 
 Slack acts as the primary interface for MSA staff.
