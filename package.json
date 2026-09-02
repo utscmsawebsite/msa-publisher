@@ -1,0 +1,30 @@
+{
+  "name": "msa-publisher",
+  "version": "1.0.0",
+  "description": "MSA Publisher is a centralized content and publishing platform for managing MSA events, meetings, Jummah information, and other content.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/utscmsawebsite/msa-publisher.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/utscmsawebsite/msa-publisher/issues"
+  },
+  "homepage": "https://github.com/utscmsawebsite/msa-publisher#readme",
+  "dependencies": {
+    "@slack/bolt": "^5.1.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
