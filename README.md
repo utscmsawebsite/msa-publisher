@@ -44,17 +44,21 @@ It is responsible for:
 
 * Validating content
 * Applying business rules
-* Reading/writing Supabase data
+* Reading/writing Neon Postgres data
+* Uploading original media to Vercel Blob
 * Managing publishing
 * Calling platform adapters
 * Handling permissions
 * Returning publishing results to Slack
 
-### Supabase
+### Neon Postgres + Vercel Blob
 
-Supabase is the canonical source of truth for MSA content.
+Neon Postgres is the canonical source of truth for MSA content and metadata.
+Original image files are stored without transformation in Vercel Blob. Each
+event stores an ordered array of its public Blob URLs in a single Postgres row.
 
-The website should read content from Supabase rather than maintaining its own separate event or Jummah data.
+The website should retrieve content through the TypeScript backend rather than
+maintaining its own separate event or Jummah data.
 
 For example:
 
@@ -63,12 +67,47 @@ Slack
   ↓
 Backend
   ↓
-Supabase
+Neon Postgres
   ↑
-Website
+Backend API ← Website
 ```
 
-Once an event is stored in Supabase, the website can automatically display it without requiring a separate website update.
+Once an event is stored in Neon, the website can automatically display it
+without requiring a separate website update. Public event images are delivered directly from Vercel Blob URLs.
+
+### HTTP API
+
+The Vercel deployment exposes two independent serverless functions from the
+same project:
+
+```text
+POST /api/slack   Slack commands and interactive payloads
+GET  /api/events  Public events currently visible on the website
+```
+
+`GET /api/events` returns events whose optional Toronto publication time has
+arrived and whose event date is today or later. Internal Slack user IDs and
+publishing metadata are not included in the public response.
+
+Local development continues to use Socket Mode:
+
+```bash
+npm run dev
+```
+
+Production uses Slack's signed HTTP requests. Configure these environment
+variables in Vercel:
+
+```text
+SLACK_BOT_TOKEN
+SLACK_SIGNING_SECRET
+DATABASE_URL
+BLOB_READ_WRITE_TOKEN
+```
+
+`SLACK_APP_TOKEN` is only required for local Socket Mode. After deploying, use
+the production `/api/slack` URL for both the `/event` command Request URL and
+the Interactivity Request URL, then disable Socket Mode.
 
 ### Platform Adapters
 
@@ -133,7 +172,7 @@ Bolt
   ↓
 TypeScript Backend
   ↓
-Supabase
+Neon Postgres + Vercel Blob
   ↑
 Website
 ```
@@ -146,18 +185,20 @@ At this stage, the backend only needs to store and manage content. External publ
 * [ ] Initialize the TypeScript project
 * [ ] Create and configure the Slack app
 * [ ] Integrate Slack Bolt
-* [ ] Implement `/event`
+* [x] Implement `/event`
 * [ ] Implement `/meeting`
 * [ ] Implement `/jummah`
-* [ ] Build Slack modals for each content type
+* [ ] Build Slack modals for each content type (`/event` complete)
 * [ ] Deploy Bolt/backend endpoints to Vercel
-* [ ] Create the initial Supabase schema
-* [ ] Configure environment variables and secrets
-* [ ] Implement backend validation
-* [ ] Implement the shared content service
-* [ ] Write submitted content to Supabase
-* [ ] Return success/error feedback to Slack
-* [ ] Reconfigure the MSA website to retrieve content from Supabase
+* [x] Create the initial Neon schema
+* [x] Add Vercel Blob image storage
+* [ ] Configure production environment variables and secrets
+* [x] Implement backend validation for events
+* [x] Implement the shared content service
+* [x] Write submitted events to Neon and their images to Vercel Blob
+* [x] Return success/error feedback to Slack events
+* [x] Add a public read API for visible events
+* [ ] Reconfigure the MSA website to retrieve content from the backend API
 * [ ] Add basic application logging/error handling
 * [ ] Add basic edit/delete functionality
 
@@ -207,9 +248,9 @@ For example:
 Event
 ├── title
 ├── description
-├── startTime
-├── endTime
-└── location
+├── publishDate (optional)
+├── publishTime (optional)
+└── eventDate
 
 Jummah
 ├── date
@@ -360,7 +401,7 @@ TypeScript Backend
 * [ ] Add WhatsApp results to publication logging
 * [ ] Add basic Cobalt connection monitoring
 * [ ] Configure the VM maintenance cron
-* [ ] Periodically query Supabase to maintain project activity
+* [ ] Run periodic database and media retention maintenance
 * [ ] Delete stale content according to retention rules
 * [ ] Delete associated stored media when appropriate
 
@@ -395,7 +436,7 @@ If WhatsApp/Cobalt stops working:
 
 ```text
 Slack      ✓
-Supabase   ✓
+Neon DB    ✓
 Website    ✓
 Instagram  ✓
 Calendar   ✓
@@ -430,9 +471,9 @@ Time: 6:00 PM
 * [ ] Add scheduling controls to applicable Slack modals
 * [ ] Add `publish_at`
 * [ ] Add scheduling status
-* [ ] Store scheduled publications in Supabase
+* [ ] Store scheduled publications in Neon
 * [ ] Configure periodic cron execution
-* [ ] Query Supabase for due publications
+* [ ] Query Neon for due publications
 * [ ] Reuse the existing publishing service
 * [ ] Mark successful publications as published
 * [ ] Track results individually per platform
@@ -447,7 +488,7 @@ Time: 6:00 PM
 Keep scheduling simple.
 
 ```text
-Supabase
+Neon Postgres
 
 publish_at = 2026-09-10 18:00
 status = scheduled
@@ -458,7 +499,7 @@ Cron periodically runs
 
           ↓
 
-Backend queries Supabase
+Backend queries Neon
 
           ↓
 
@@ -490,4 +531,3 @@ The system should follow several basic security rules from the beginning:
 * Restrict unnecessary VM network access.
 * Treat the Cobalt session as sensitive authentication material.
 * Prefer a dedicated organizational WhatsApp account.
-

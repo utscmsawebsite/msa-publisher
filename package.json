@@ -2,9 +2,12 @@
   "name": "msa-publisher",
   "version": "1.0.0",
   "description": "MSA Publisher is a centralized content and publishing platform for managing MSA events, meetings, Jummah information, and other content.",
-  "main": "index.js",
+  "main": "dist/src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start": "node dist/src/index.js"
   },
   "repository": {
     "type": "git",
@@ -13,13 +16,16 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/utscmsawebsite/msa-publisher/issues"
   },
   "homepage": "https://github.com/utscmsawebsite/msa-publisher#readme",
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@slack/bolt": "^5.1.0",
+    "@vercel/blob": "^2.8.0",
+    "@vercel/functions": "^3.9.7",
     "dotenv": "^17.4.2"
   },
   "devDependencies": {
