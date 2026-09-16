@@ -1,5 +1,7 @@
 import { NeonContentRepository } from "./repositories/neon-content.repository.js";
+import { NeonJummahRepository } from "./repositories/neon-jummah.repository.js";
 import { ContentService } from "./services/content.service.js";
+import { JummahService } from "./services/jummah.service.js";
 import { VercelBlobImageStorage } from "./storage/vercel-blob-image.storage.js";
 
 export function requireEnvironmentVariable(name: string): string {
@@ -23,4 +25,12 @@ export function createContentService(): ContentService {
   );
 
   return new ContentService(repository, imageStorage);
+}
+
+export function createJummahService(): JummahService {
+  const repository = new NeonJummahRepository(
+    requireEnvironmentVariable("DATABASE_URL"),
+  );
+
+  return new JummahService(repository);
 }

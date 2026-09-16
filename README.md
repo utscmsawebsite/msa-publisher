@@ -20,6 +20,7 @@ Commands such as:
 
 ```text
 /event
+/event-edit
 /meeting
 /jummah
 ```
@@ -77,17 +78,25 @@ without requiring a separate website update. Public event images are delivered d
 
 ### HTTP API
 
-The Vercel deployment exposes two independent serverless functions from the
+The Vercel deployment exposes three independent serverless functions from the
 same project:
 
 ```text
 POST /api/slack   Slack commands and interactive payloads
 GET  /api/events  Public events currently visible on the website
+GET  /api/jummah  Current Jummah schedule for the website
 ```
 
-`GET /api/events` returns events whose optional Toronto publication time has
-arrived and whose event date is today or later. Internal Slack user IDs and
-publishing metadata are not included in the public response.
+`GET /api/events` returns events whose event date is today or later, ordered by
+their date and start time. Internal Slack user IDs are not included in the
+public response.
+
+Successfully saving or editing an event also performs opportunistic cleanup:
+event rows dated before the current Toronto date and their Blob images are
+removed. This keeps stale content bounded without requiring a scheduled job.
+
+`GET /api/jummah` returns the single current Jummah schedule. The second
+Jummah fields are `null` when there is no second khutbah.
 
 Local development continues to use Socket Mode:
 
@@ -101,13 +110,24 @@ variables in Vercel:
 ```text
 SLACK_BOT_TOKEN
 SLACK_SIGNING_SECRET
+SLACK_ALLOWED_USER_IDS
+SLACK_LOG_CHANNEL_ID
 DATABASE_URL
 BLOB_READ_WRITE_TOKEN
 ```
 
+`SLACK_ALLOWED_USER_IDS` is a comma-separated allowlist of Slack member IDs,
+for example `U012ABCDEF,U098ZYXWVU`. Only those users can open or submit the
+event, event-edit, and Jummah forms.
+
+`SLACK_LOG_CHANNEL_ID` identifies the private operations channel that receives
+event and Jummah successes, failures, and rejected authorization attempts. Add
+the bot to that channel and grant it the `chat:write` bot scope.
+
 `SLACK_APP_TOKEN` is only required for local Socket Mode. After deploying, use
-the production `/api/slack` URL for both the `/event` command Request URL and
-the Interactivity Request URL, then disable Socket Mode.
+the production `/api/slack` URL for the `/event`, `/event-edit`, and `/jummah`
+command Request URLs and the Interactivity Request URL, then disable Socket
+Mode.
 
 ### Platform Adapters
 
@@ -187,8 +207,8 @@ At this stage, the backend only needs to store and manage content. External publ
 * [ ] Integrate Slack Bolt
 * [x] Implement `/event`
 * [ ] Implement `/meeting`
-* [ ] Implement `/jummah`
-* [ ] Build Slack modals for each content type (`/event` complete)
+* [x] Implement `/jummah`
+* [ ] Build Slack modals for each content type (`/event` and `/jummah` complete)
 * [ ] Deploy Bolt/backend endpoints to Vercel
 * [x] Create the initial Neon schema
 * [x] Add Vercel Blob image storage
@@ -200,7 +220,7 @@ At this stage, the backend only needs to store and manage content. External publ
 * [x] Add a public read API for visible events
 * [ ] Reconfigure the MSA website to retrieve content from the backend API
 * [ ] Add basic application logging/error handling
-* [ ] Add basic edit/delete functionality
+* [x] Add basic event edit/delete functionality
 
 ### Keep in Mind
 
@@ -248,16 +268,17 @@ For example:
 Event
 ├── title
 ├── description
-├── publishDate (optional)
-├── publishTime (optional)
-└── eventDate
+├── eventDate
+├── startTime
+└── endTime
 
 Jummah
-├── date
-├── location
-├── salah1
-├── salah2
-└── khateeb
+├── firstStartTime
+├── firstEndTime
+├── firstLocation
+├── secondStartTime (optional)
+├── secondEndTime (optional)
+└── secondLocation (optional; defaults to firstLocation)
 ```
 
 The goal is to reuse common application logic without forcing genuinely different content into an awkward universal structure.

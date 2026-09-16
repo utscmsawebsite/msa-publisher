@@ -3,6 +3,7 @@ import { HTTPReceiver } from "@slack/bolt";
 import { waitUntil } from "@vercel/functions";
 import {
   createContentService,
+  createJummahService,
   requireEnvironmentVariable,
 } from "../src/application.js";
 import { createSlackApp } from "../src/slack/bolt.js";
@@ -13,7 +14,7 @@ const receiver = new HTTPReceiver({
   processBeforeResponse: false,
 });
 
-createSlackApp(createContentService(), {
+createSlackApp(createContentService(), createJummahService(), {
   receiver,
   scheduleBackgroundTask: waitUntil,
 });
