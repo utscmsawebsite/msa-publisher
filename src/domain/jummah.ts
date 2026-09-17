@@ -10,7 +10,14 @@ export interface JummahDraft {
 
 export interface JummahContent extends JummahDraft {
   id: "current";
+  isOffered: boolean;
+  unavailableMessage: string | null;
   updatedAt: string;
+}
+
+export interface JummahUnavailableDraft {
+  unavailableMessage: string;
+  updatedBySlackUserId: string;
 }
 
 export type PublicJummah = Omit<JummahContent, "updatedBySlackUserId">;

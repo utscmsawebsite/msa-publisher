@@ -1,4 +1,8 @@
-import type { JummahContent, JummahDraft } from "../domain/jummah.js";
+import type {
+  JummahContent,
+  JummahDraft,
+  JummahUnavailableDraft,
+} from "../domain/jummah.js";
 import type { JummahRepository } from "../repositories/jummah.repository.js";
 
 export class JummahService {
@@ -78,6 +82,26 @@ export class JummahService {
       secondLocation: secondStartTime
         ? suppliedSecondLocation ?? firstLocation
         : null,
+      updatedBySlackUserId,
+    });
+  }
+
+  async markUnavailable(
+    draft: JummahUnavailableDraft,
+  ): Promise<JummahContent> {
+    const unavailableMessage = draft.unavailableMessage.trim();
+    const updatedBySlackUserId = draft.updatedBySlackUserId.trim();
+
+    if (!unavailableMessage) {
+      throw new Error("An unavailable message is required.");
+    }
+
+    if (!updatedBySlackUserId) {
+      throw new Error("The Slack user ID is required.");
+    }
+
+    return this.repository.markUnavailable({
+      unavailableMessage,
       updatedBySlackUserId,
     });
   }

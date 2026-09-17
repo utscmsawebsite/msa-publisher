@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS jummah (
   second_start_time time,
   second_end_time time,
   second_location text,
+  is_offered boolean NOT NULL DEFAULT true,
+  unavailable_message text,
   updated_by_slack_user_id text NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now(),
 
@@ -63,6 +65,11 @@ CREATE TABLE IF NOT EXISTS jummah (
       AND second_end_time IS NOT NULL
       AND second_location IS NOT NULL
     )
+  ),
+
+  CONSTRAINT jummah_unavailable_message_required CHECK (
+    is_offered
+    OR NULLIF(BTRIM(unavailable_message), '') IS NOT NULL
   )
 );
 

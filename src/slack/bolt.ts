@@ -5,6 +5,7 @@ import type {
   EventUpdate,
   ManageableEvent,
 } from "../domain/content.js";
+import type { JummahContent } from "../domain/jummah.js";
 import { logError, logInfo, logWarning } from "../logging/application-logger.js";
 import {
   EventCreationError,
@@ -84,6 +85,10 @@ interface SlackAppOptions {
   scheduleBackgroundTask?: BackgroundTaskScheduler;
 }
 
+type SlackModalView = Parameters<
+  App["client"]["views"]["open"]
+>[0]["view"];
+
 interface EditViewMetadata {
   eventId?: string;
   responseUrl?: string;
@@ -110,6 +115,216 @@ function eventOptionLabel(event: ManageableEvent): string {
     `Event · ${event.title} · ${event.eventDate}`,
     75,
   );
+}
+
+function jummahViewMetadata(responseUrl: string | undefined): string {
+  return JSON.stringify({ responseUrl });
+}
+
+function buildJummahScheduleView(
+  current: JummahContent | null,
+  responseUrl: string | undefined,
+): SlackModalView {
+  return {
+    type: "modal",
+    callback_id: "update_jummah",
+    private_metadata: jummahViewMetadata(responseUrl),
+    title: {
+      type: "plain_text",
+      text: "Update Jummah",
+    },
+    submit: {
+      type: "plain_text",
+      text: "Save",
+    },
+    close: {
+      type: "plain_text",
+      text: "Cancel",
+    },
+    blocks: [
+      {
+        type: "input",
+        block_id: "first_start_time",
+        label: {
+          type: "plain_text",
+          text: "First Jummah start time",
+        },
+        element: {
+          type: "timepicker",
+          action_id: "time_input",
+          ...(current ? { initial_time: current.firstStartTime } : {}),
+        },
+      },
+      {
+        type: "input",
+        block_id: "first_end_time",
+        label: {
+          type: "plain_text",
+          text: "First Jummah end time",
+        },
+        element: {
+          type: "timepicker",
+          action_id: "time_input",
+          ...(current ? { initial_time: current.firstEndTime } : {}),
+        },
+      },
+      {
+        type: "input",
+        block_id: "first_location",
+        label: {
+          type: "plain_text",
+          text: "First Jummah location",
+        },
+        element: {
+          type: "plain_text_input",
+          action_id: "location_input",
+          ...(current ? { initial_value: current.firstLocation } : {}),
+        },
+      },
+      {
+        type: "divider",
+      },
+      {
+        type: "input",
+        block_id: "second_start_time",
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: "Second Jummah start time",
+        },
+        hint: {
+          type: "plain_text",
+          text: "Optional; start and end must be provided together.",
+        },
+        element: {
+          type: "timepicker",
+          action_id: "time_input",
+          ...(current?.secondStartTime
+            ? { initial_time: current.secondStartTime }
+            : {}),
+        },
+      },
+      {
+        type: "input",
+        block_id: "second_end_time",
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: "Second Jummah end time",
+        },
+        element: {
+          type: "timepicker",
+          action_id: "time_input",
+          ...(current?.secondEndTime
+            ? { initial_time: current.secondEndTime }
+            : {}),
+        },
+      },
+      {
+        type: "input",
+        block_id: "second_location",
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: "Second Jummah location",
+        },
+        hint: {
+          type: "plain_text",
+          text: "Defaults to the first location when left empty.",
+        },
+        element: {
+          type: "plain_text_input",
+          action_id: "location_input",
+          ...(current?.secondLocation
+            ? { initial_value: current.secondLocation }
+            : {}),
+        },
+      },
+      ...(current
+        ? [
+            {
+              type: "divider" as const,
+            },
+            {
+              type: "actions" as const,
+              block_id: "jummah_availability_actions",
+              elements: [
+                {
+                  type: "button" as const,
+                  action_id: "show_jummah_unavailable",
+                  text: {
+                    type: "plain_text" as const,
+                    text: "Jummah not happening this week",
+                  },
+                },
+              ],
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+function buildJummahUnavailableView(
+  current: JummahContent,
+  responseUrl: string | undefined,
+): SlackModalView {
+  return {
+    type: "modal",
+    callback_id: "update_jummah_unavailable",
+    private_metadata: jummahViewMetadata(responseUrl),
+    title: {
+      type: "plain_text",
+      text: "Jummah Unavailable",
+    },
+    submit: {
+      type: "plain_text",
+      text: "Save",
+    },
+    close: {
+      type: "plain_text",
+      text: "Cancel",
+    },
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "Use this status when Jummah is not being offered on campus. The saved schedule will be kept for when Jummah resumes.",
+        },
+      },
+      {
+        type: "input",
+        block_id: "unavailable_message",
+        label: {
+          type: "plain_text",
+          text: "Message for the website",
+        },
+        element: {
+          type: "plain_text_input",
+          action_id: "message_input",
+          multiline: true,
+          initial_value:
+            current.unavailableMessage ??
+            "Jummah is not offered on campus this week. Please visit a nearby masjid.",
+        },
+      },
+      {
+        type: "actions",
+        block_id: "jummah_availability_actions",
+        elements: [
+          {
+            type: "button",
+            action_id: "show_jummah_schedule",
+            text: {
+              type: "plain_text",
+              text: "Jummah is happening this week",
+            },
+          },
+        ],
+      },
+    ],
+  };
 }
 
 async function sendSlackLog(
@@ -465,132 +680,19 @@ export function createSlackApp(
 
         await client.views.open({
           trigger_id: command.trigger_id,
-          view: {
-            type: "modal",
-            callback_id: "update_jummah",
-            private_metadata: JSON.stringify({
-              responseUrl: command.response_url,
-            }),
-            title: {
-              type: "plain_text",
-              text: "Update Jummah",
-            },
-            submit: {
-              type: "plain_text",
-              text: "Save",
-            },
-            close: {
-              type: "plain_text",
-              text: "Cancel",
-            },
-            blocks: [
-              {
-                type: "input",
-                block_id: "first_start_time",
-                label: {
-                  type: "plain_text",
-                  text: "First Jummah start time",
-                },
-                element: {
-                  type: "timepicker",
-                  action_id: "time_input",
-                  ...(current
-                    ? { initial_time: current.firstStartTime }
-                    : {}),
-                },
-              },
-              {
-                type: "input",
-                block_id: "first_end_time",
-                label: {
-                  type: "plain_text",
-                  text: "First Jummah end time",
-                },
-                element: {
-                  type: "timepicker",
-                  action_id: "time_input",
-                  ...(current ? { initial_time: current.firstEndTime } : {}),
-                },
-              },
-              {
-                type: "input",
-                block_id: "first_location",
-                label: {
-                  type: "plain_text",
-                  text: "First Jummah location",
-                },
-                element: {
-                  type: "plain_text_input",
-                  action_id: "location_input",
-                  ...(current ? { initial_value: current.firstLocation } : {}),
-                },
-              },
-              {
-                type: "divider",
-              },
-              {
-                type: "input",
-                block_id: "second_start_time",
-                optional: true,
-                label: {
-                  type: "plain_text",
-                  text: "Second Jummah start time",
-                },
-                hint: {
-                  type: "plain_text",
-                  text: "Optional; start and end must be provided together.",
-                },
-                element: {
-                  type: "timepicker",
-                  action_id: "time_input",
-                  ...(current?.secondStartTime
-                    ? { initial_time: current.secondStartTime }
-                    : {}),
-                },
-              },
-              {
-                type: "input",
-                block_id: "second_end_time",
-                optional: true,
-                label: {
-                  type: "plain_text",
-                  text: "Second Jummah end time",
-                },
-                element: {
-                  type: "timepicker",
-                  action_id: "time_input",
-                  ...(current?.secondEndTime
-                    ? { initial_time: current.secondEndTime }
-                    : {}),
-                },
-              },
-              {
-                type: "input",
-                block_id: "second_location",
-                optional: true,
-                label: {
-                  type: "plain_text",
-                  text: "Second Jummah location",
-                },
-                hint: {
-                  type: "plain_text",
-                  text: "Defaults to the first location when left empty.",
-                },
-                element: {
-                  type: "plain_text_input",
-                  action_id: "location_input",
-                  ...(current?.secondLocation
-                    ? { initial_value: current.secondLocation }
-                    : {}),
-                },
-              },
-            ],
-          },
+          view:
+            current && !current.isOffered
+              ? buildJummahUnavailableView(
+                  current,
+                  command.response_url,
+                )
+              : buildJummahScheduleView(current, command.response_url),
         });
 
         logInfo("jummah_form_opened", {
           slackUserId: command.user_id,
           existingSchedule: Boolean(current),
+          isOffered: current?.isOffered ?? null,
         });
       } catch (error) {
         logError("jummah_form_open_failed", error, {
@@ -722,6 +824,112 @@ export function createSlackApp(
     }
 
     await openEventPicker();
+  });
+
+  app.action(
+    "show_jummah_unavailable",
+    async ({ ack, body, client }) => {
+      await ack();
+
+      if (!allowedSlackUserIds.has(body.user.id)) {
+        logWarning("slack_authorization_denied", {
+          slackUserId: body.user.id,
+          action: "show_jummah_unavailable",
+        });
+        return;
+      }
+
+      const currentView = "view" in body ? body.view : undefined;
+      if (!currentView) {
+        return;
+      }
+
+      const showUnavailableForm = async () => {
+        try {
+          const current = await jummahService.getCurrent();
+          if (!current) {
+            throw new Error(
+              "A Jummah schedule must be saved before it can be marked unavailable.",
+            );
+          }
+
+          const metadata = parseEditViewMetadata(
+            currentView.private_metadata,
+          );
+          await client.views.update({
+            view_id: currentView.id,
+            hash: currentView.hash,
+            view: buildJummahUnavailableView(
+              current,
+              metadata.responseUrl,
+            ),
+          });
+
+          logInfo("jummah_unavailable_form_opened", {
+            slackUserId: body.user.id,
+          });
+        } catch (error) {
+          logError("jummah_unavailable_form_open_failed", error, {
+            slackUserId: body.user.id,
+          });
+        }
+      };
+
+      if (options.scheduleBackgroundTask) {
+        options.scheduleBackgroundTask(showUnavailableForm());
+        return;
+      }
+
+      await showUnavailableForm();
+    },
+  );
+
+  app.action("show_jummah_schedule", async ({ ack, body, client }) => {
+    await ack();
+
+    if (!allowedSlackUserIds.has(body.user.id)) {
+      logWarning("slack_authorization_denied", {
+        slackUserId: body.user.id,
+        action: "show_jummah_schedule",
+      });
+      return;
+    }
+
+    const currentView = "view" in body ? body.view : undefined;
+    if (!currentView) {
+      return;
+    }
+
+    const showScheduleForm = async () => {
+      try {
+        const current = await jummahService.getCurrent();
+        const metadata = parseEditViewMetadata(currentView.private_metadata);
+
+        await client.views.update({
+          view_id: currentView.id,
+          hash: currentView.hash,
+          view: buildJummahScheduleView(
+            current,
+            metadata.responseUrl,
+          ),
+        });
+
+        logInfo("jummah_schedule_form_opened", {
+          slackUserId: body.user.id,
+        });
+      } catch (error) {
+        logError("jummah_schedule_form_open_failed", error, {
+          slackUserId: body.user.id,
+        });
+      }
+    };
+
+    if (options.scheduleBackgroundTask) {
+      options.scheduleBackgroundTask(showScheduleForm());
+      return;
+    }
+
+    await showScheduleForm();
   });
 
   app.action(
@@ -1345,6 +1553,119 @@ export function createSlackApp(
 
     await saveJummah();
   });
+
+  app.view(
+    "update_jummah_unavailable",
+    async ({ ack, body, client, view }) => {
+      if (!allowedSlackUserIds.has(body.user.id)) {
+        await ack({
+          response_action: "errors",
+          errors: {
+            unavailable_message:
+              "You are not authorized to update Jummah information.",
+          },
+        });
+
+        logWarning("slack_authorization_denied", {
+          slackUserId: body.user.id,
+          action: "update_jummah_unavailable",
+        });
+        return;
+      }
+
+      const unavailableMessage =
+        view.state.values.unavailable_message?.message_input?.value?.trim();
+
+      if (!unavailableMessage) {
+        await ack({
+          response_action: "errors",
+          errors: {
+            unavailable_message: "Enter a message for the website.",
+          },
+        });
+        return;
+      }
+
+      await ack();
+
+      const markJummahUnavailable = async () => {
+        try {
+          const jummah = await jummahService.markUnavailable({
+            unavailableMessage,
+            updatedBySlackUserId: body.user.id,
+          });
+
+          logInfo("jummah_marked_unavailable", {
+            slackUserId: body.user.id,
+          });
+
+          await sendSlackLog(
+            client,
+            logChannelId,
+            [
+              "🚫 Jummah marked unavailable",
+              `Message: ${jummah.unavailableMessage}`,
+              `Updated by: <@${body.user.id}>`,
+            ].join("\n"),
+            {
+              slackUserId: body.user.id,
+            },
+          );
+
+          const metadata = parseEditViewMetadata(view.private_metadata);
+          if (metadata.responseUrl) {
+            await sendCommandResponse(
+              metadata.responseUrl,
+              "Jummah was marked as unavailable.",
+            ).catch((error) =>
+              logError("slack_jummah_response_failed", error, {
+                slackUserId: body.user.id,
+              }),
+            );
+          }
+        } catch (error) {
+          logError("jummah_unavailable_update_failed", error, {
+            slackUserId: body.user.id,
+          });
+
+          await sendSlackLog(
+            client,
+            logChannelId,
+            [
+              "❌ Jummah availability update failed",
+              `Attempted by: <@${body.user.id}>`,
+            ].join("\n"),
+            {
+              slackUserId: body.user.id,
+            },
+          );
+
+          const metadata = parseEditViewMetadata(view.private_metadata);
+          if (metadata.responseUrl) {
+            await sendCommandResponse(
+              metadata.responseUrl,
+              "Jummah availability could not be saved. Check the application logs and try again.",
+            ).catch((responseError) =>
+              logError(
+                "slack_jummah_error_response_failed",
+                responseError,
+                {
+                  slackUserId: body.user.id,
+                },
+              ),
+            );
+          }
+        }
+      };
+
+      if (options.scheduleBackgroundTask) {
+        options.scheduleBackgroundTask(markJummahUnavailable());
+        return;
+      }
+
+      await markJummahUnavailable();
+    },
+  );
 
   app.view("edit_event", async ({ ack, body, client, view }) => {
     if (!allowedSlackUserIds.has(body.user.id)) {

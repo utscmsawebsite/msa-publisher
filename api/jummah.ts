@@ -41,6 +41,8 @@ export default async function handler(
           secondStartTime: current.secondStartTime,
           secondEndTime: current.secondEndTime,
           secondLocation: current.secondLocation,
+          isOffered: current.isOffered,
+          unavailableMessage: current.unavailableMessage,
           updatedAt: current.updatedAt,
         }
       : null;

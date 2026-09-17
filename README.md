@@ -95,8 +95,11 @@ Successfully saving or editing an event also performs opportunistic cleanup:
 event rows dated before the current Toronto date and their Blob images are
 removed. This keeps stale content bounded without requiring a scheduled job.
 
-`GET /api/jummah` returns the single current Jummah schedule. The second
-Jummah fields are `null` when there is no second khutbah.
+`GET /api/jummah` returns the single current Jummah schedule and its current
+availability. `isOffered` determines whether the website should show the
+schedule or `unavailableMessage`. The saved schedule remains available while
+`isOffered` is false, and the second Jummah fields are `null` when there is no
+second khutbah.
 
 Local development continues to use Socket Mode:
 
@@ -278,7 +281,9 @@ Jummah
 ├── firstLocation
 ├── secondStartTime (optional)
 ├── secondEndTime (optional)
-└── secondLocation (optional; defaults to firstLocation)
+├── secondLocation (optional; defaults to firstLocation)
+├── isOffered
+└── unavailableMessage (used when Jummah is not offered)
 ```
 
 The goal is to reuse common application logic without forcing genuinely different content into an awkward universal structure.
