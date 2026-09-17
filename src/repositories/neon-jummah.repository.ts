@@ -49,11 +49,11 @@ export class NeonJummahRepository implements JummahRepository {
     const rows = await this.sql`
       SELECT
         id,
-        first_start_time AS "firstStartTime",
-        first_end_time AS "firstEndTime",
+        to_char(first_start_time, 'HH24:MI') AS "firstStartTime",
+        to_char(first_end_time, 'HH24:MI') AS "firstEndTime",
         first_location AS "firstLocation",
-        second_start_time AS "secondStartTime",
-        second_end_time AS "secondEndTime",
+        to_char(second_start_time, 'HH24:MI') AS "secondStartTime",
+        to_char(second_end_time, 'HH24:MI') AS "secondEndTime",
         second_location AS "secondLocation",
         is_offered AS "isOffered",
         unavailable_message AS "unavailableMessage",
@@ -103,11 +103,11 @@ export class NeonJummahRepository implements JummahRepository {
         updated_at = now()
       RETURNING
         id,
-        first_start_time AS "firstStartTime",
-        first_end_time AS "firstEndTime",
+        to_char(first_start_time, 'HH24:MI') AS "firstStartTime",
+        to_char(first_end_time, 'HH24:MI') AS "firstEndTime",
         first_location AS "firstLocation",
-        second_start_time AS "secondStartTime",
-        second_end_time AS "secondEndTime",
+        to_char(second_start_time, 'HH24:MI') AS "secondStartTime",
+        to_char(second_end_time, 'HH24:MI') AS "secondEndTime",
         second_location AS "secondLocation",
         is_offered AS "isOffered",
         unavailable_message AS "unavailableMessage",
@@ -136,11 +136,11 @@ export class NeonJummahRepository implements JummahRepository {
       WHERE id = 'current'
       RETURNING
         id,
-        first_start_time AS "firstStartTime",
-        first_end_time AS "firstEndTime",
+        to_char(first_start_time, 'HH24:MI') AS "firstStartTime",
+        to_char(first_end_time, 'HH24:MI') AS "firstEndTime",
         first_location AS "firstLocation",
-        second_start_time AS "secondStartTime",
-        second_end_time AS "secondEndTime",
+        to_char(second_start_time, 'HH24:MI') AS "secondStartTime",
+        to_char(second_end_time, 'HH24:MI') AS "secondEndTime",
         second_location AS "secondLocation",
         is_offered AS "isOffered",
         unavailable_message AS "unavailableMessage",
