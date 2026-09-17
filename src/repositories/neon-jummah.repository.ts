@@ -13,13 +13,38 @@ function nullableString(value: unknown): string | null {
 }
 
 function time(value: unknown): string {
-  return String(value).slice(0, 5);
+  const rawTime = String(value).trim();
+  const match = rawTime.match(
+    /^(\d{1,2}):([0-5]\d)(?::[0-5]\d(?:\.\d+)?)?\s*(AM|PM)?$/i,
+  );
+
+  if (!match?.[1] || !match[2]) {
+    throw new Error(`Invalid Jummah time stored in the database: ${rawTime}`);
+  }
+
+  let hour = Number(match[1]);
+  const period = match[3]?.toUpperCase();
+
+  if (period) {
+    if (hour < 1 || hour > 12) {
+      throw new Error(`Invalid Jummah time stored in the database: ${rawTime}`);
+    }
+
+    hour %= 12;
+    if (period === "PM") {
+      hour += 12;
+    }
+  } else if (hour > 23) {
+    throw new Error(`Invalid Jummah time stored in the database: ${rawTime}`);
+  }
+
+  return `${String(hour).padStart(2, "0")}:${match[2]}`;
 }
 
 function nullableTime(value: unknown): string | null {
   return value === null || value === undefined
     ? null
-    : String(value).slice(0, 5);
+    : time(value);
 }
 
 function mapJummah(row: DatabaseRow): JummahContent {
@@ -49,11 +74,11 @@ export class NeonJummahRepository implements JummahRepository {
     const rows = await this.sql`
       SELECT
         id,
-        to_char(first_start_time, 'HH24:MI') AS "firstStartTime",
-        to_char(first_end_time, 'HH24:MI') AS "firstEndTime",
+        first_start_time AS "firstStartTime",
+        first_end_time AS "firstEndTime",
         first_location AS "firstLocation",
-        to_char(second_start_time, 'HH24:MI') AS "secondStartTime",
-        to_char(second_end_time, 'HH24:MI') AS "secondEndTime",
+        second_start_time AS "secondStartTime",
+        second_end_time AS "secondEndTime",
         second_location AS "secondLocation",
         is_offered AS "isOffered",
         unavailable_message AS "unavailableMessage",
@@ -103,11 +128,11 @@ export class NeonJummahRepository implements JummahRepository {
         updated_at = now()
       RETURNING
         id,
-        to_char(first_start_time, 'HH24:MI') AS "firstStartTime",
-        to_char(first_end_time, 'HH24:MI') AS "firstEndTime",
+        first_start_time AS "firstStartTime",
+        first_end_time AS "firstEndTime",
         first_location AS "firstLocation",
-        to_char(second_start_time, 'HH24:MI') AS "secondStartTime",
-        to_char(second_end_time, 'HH24:MI') AS "secondEndTime",
+        second_start_time AS "secondStartTime",
+        second_end_time AS "secondEndTime",
         second_location AS "secondLocation",
         is_offered AS "isOffered",
         unavailable_message AS "unavailableMessage",
@@ -136,11 +161,11 @@ export class NeonJummahRepository implements JummahRepository {
       WHERE id = 'current'
       RETURNING
         id,
-        to_char(first_start_time, 'HH24:MI') AS "firstStartTime",
-        to_char(first_end_time, 'HH24:MI') AS "firstEndTime",
+        first_start_time AS "firstStartTime",
+        first_end_time AS "firstEndTime",
         first_location AS "firstLocation",
-        to_char(second_start_time, 'HH24:MI') AS "secondStartTime",
-        to_char(second_end_time, 'HH24:MI') AS "secondEndTime",
+        second_start_time AS "secondStartTime",
+        second_end_time AS "secondEndTime",
         second_location AS "secondLocation",
         is_offered AS "isOffered",
         unavailable_message AS "unavailableMessage",
