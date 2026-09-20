@@ -5,6 +5,7 @@ export interface JummahCalendarIds {
 
 export interface CalendarRepository {
   getEventCalendarId(eventId: string): Promise<string | null>;
+  getAllEventCalendarIds(): Promise<Map<string, string>>;
   setEventCalendarId(
     eventId: string,
     calendarEventId: string | null,

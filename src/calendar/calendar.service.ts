@@ -95,14 +95,20 @@ export class CalendarService {
     await this.repository.setEventCalendarId(event.id, calendarEventId);
   }
 
-  async syncEventDeleted(eventId: string): Promise<void> {
-    const existingId = await this.repository.getEventCalendarId(eventId);
+  async getEventCalendarId(eventId: string): Promise<string | null> {
+    return this.repository.getEventCalendarId(eventId);
+  }
 
-    if (!existingId) {
+  async getAllEventCalendarIds(): Promise<Map<string, string>> {
+    return this.repository.getAllEventCalendarIds();
+  }
+
+  async syncEventDeleted(calendarEventId: string | null): Promise<void> {
+    if (!calendarEventId) {
       return;
     }
 
-    await this.adapter.deleteEvent(existingId);
+    await this.adapter.deleteEvent(calendarEventId);
   }
 
   async syncJummahSchedule(jummah: JummahContent): Promise<void> {

@@ -433,6 +433,17 @@ export function createSlackApp(
     slackUserId: string,
   ): Promise<void> => {
     try {
+      // Captured before the delete runs — once a row is gone, its
+      // google_calendar_event_id is no longer reachable by id lookup.
+      const calendarIdsBeforeCleanup = await calendarService
+        .getAllEventCalendarIds()
+        .catch((error) => {
+          logError("calendar_id_lookup_failed", error, {
+            context: "stale_cleanup",
+          });
+          return new Map<string, string>();
+        });
+
       const result = await contentService.cleanupStaleEvents();
 
       if (result.deletedEvents.length === 0) {
@@ -441,10 +452,11 @@ export function createSlackApp(
 
       let calendarCleanupSucceeded = true;
       for (const event of result.deletedEvents) {
+        const calendarEventId = calendarIdsBeforeCleanup.get(event.id) ?? null;
         const succeeded = await syncCalendarBestEffort(
           "stale_event_deleted",
           { eventId: event.id },
-          () => calendarService.syncEventDeleted(event.id),
+          () => calendarService.syncEventDeleted(calendarEventId),
         );
         calendarCleanupSucceeded = calendarCleanupSucceeded && succeeded;
       }
@@ -2025,6 +2037,15 @@ export function createSlackApp(
 
     const deleteEvent = async () => {
       try {
+        // Captured before the delete runs — once the row is gone, its
+        // google_calendar_event_id is no longer reachable by id lookup.
+        const calendarEventId = await calendarService
+          .getEventCalendarId(eventId)
+          .catch((error) => {
+            logError("calendar_id_lookup_failed", error, { eventId });
+            return null;
+          });
+
         const result = await contentService.deleteEvent(eventId);
 
         if (!result) {
@@ -2034,7 +2055,7 @@ export function createSlackApp(
         const calendarSyncSucceeded = await syncCalendarBestEffort(
           "event_deleted",
           { eventId: result.event.id },
-          () => calendarService.syncEventDeleted(result.event.id),
+          () => calendarService.syncEventDeleted(calendarEventId),
         );
 
         logInfo("event_deleted", {

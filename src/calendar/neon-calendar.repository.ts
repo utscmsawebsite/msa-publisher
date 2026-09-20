@@ -23,6 +23,21 @@ export class NeonCalendarRepository implements CalendarRepository {
     return row ? (row.googleCalendarEventId as string | null) : null;
   }
 
+  async getAllEventCalendarIds(): Promise<Map<string, string>> {
+    const rows = await this.sql`
+      SELECT id, google_calendar_event_id AS "googleCalendarEventId"
+      FROM events
+      WHERE google_calendar_event_id IS NOT NULL
+    `;
+
+    const ids = new Map<string, string>();
+    for (const row of rows) {
+      ids.set(String(row.id), String(row.googleCalendarEventId));
+    }
+
+    return ids;
+  }
+
   async setEventCalendarId(
     eventId: string,
     calendarEventId: string | null,
