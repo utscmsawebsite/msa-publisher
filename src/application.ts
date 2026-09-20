@@ -1,3 +1,6 @@
+import { CalendarService } from "./calendar/calendar.service.js";
+import { GoogleCalendarAdapter } from "./calendar/google-calendar.adapter.js";
+import { NeonCalendarRepository } from "./calendar/neon-calendar.repository.js";
 import { NeonContentRepository } from "./repositories/neon-content.repository.js";
 import { NeonJummahRepository } from "./repositories/neon-jummah.repository.js";
 import { ContentService } from "./services/content.service.js";
@@ -33,4 +36,25 @@ export function createJummahService(): JummahService {
   );
 
   return new JummahService(repository);
+}
+
+export function createCalendarService(): CalendarService {
+  const serviceAccountEmail = requireEnvironmentVariable(
+    "GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL",
+  );
+  const privateKey = requireEnvironmentVariable(
+    "GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY",
+  ).replace(/\\n/g, "\n");
+  const calendarId = requireEnvironmentVariable("GOOGLE_CALENDAR_ID");
+
+  const adapter = new GoogleCalendarAdapter(
+    serviceAccountEmail,
+    privateKey,
+    calendarId,
+  );
+  const repository = new NeonCalendarRepository(
+    requireEnvironmentVariable("DATABASE_URL"),
+  );
+
+  return new CalendarService(adapter, repository);
 }

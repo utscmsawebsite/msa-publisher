@@ -20,11 +20,16 @@ function nullableTime(value: unknown): string | null {
     : String(value).slice(0, 5);
 }
 
+function nullableString(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value);
+}
+
 function mapManageableEvent(row: DatabaseRow): ManageableEvent {
   return {
     id: String(row.id),
     title: String(row.title),
     description: String(row.description),
+    location: nullableString(row.location),
     eventDate: String(row.eventDate),
     startTime: nullableTime(row.startTime),
     endTime: nullableTime(row.endTime),
@@ -38,9 +43,12 @@ function mapManageableEvent(row: DatabaseRow): ManageableEvent {
 function mapEventContent(row: DatabaseRow): EventContent {
   const startTime = nullableTime(row.startTime);
   const endTime = nullableTime(row.endTime);
+  const location = nullableString(row.location);
 
-  if (!startTime || !endTime) {
-    throw new Error("A saved event is missing its start or end time.");
+  if (!startTime || !endTime || !location) {
+    throw new Error(
+      "A saved event is missing its start time, end time, or location.",
+    );
   }
 
   return {
@@ -48,6 +56,7 @@ function mapEventContent(row: DatabaseRow): EventContent {
     ...mapManageableEvent(row),
     startTime,
     endTime,
+    location,
     slackSubmissionId: String(row.slackSubmissionId),
     createdAt: String(row.createdAt),
   };
@@ -68,6 +77,7 @@ export class NeonContentRepository
         id,
         title,
         description,
+        location,
         event_date,
         start_time,
         end_time,
@@ -79,6 +89,7 @@ export class NeonContentRepository
         ${content.id},
         ${content.title},
         ${content.description},
+        ${content.location},
         ${content.eventDate},
         ${content.startTime},
         ${content.endTime},
@@ -93,6 +104,7 @@ export class NeonContentRepository
         id,
         title,
         description,
+        location,
         event_date::text AS "eventDate",
         start_time::text AS "startTime",
         end_time::text AS "endTime",
@@ -117,6 +129,7 @@ export class NeonContentRepository
         id,
         title,
         description,
+        location,
         event_date::text AS "eventDate",
         start_time::text AS "startTime",
         end_time::text AS "endTime",
@@ -130,6 +143,7 @@ export class NeonContentRepository
       id: String(row.id),
       title: String(row.title),
       description: String(row.description),
+      location: nullableString(row.location),
       eventDate: String(row.eventDate),
       startTime:
         row.startTime === null ? null : String(row.startTime).slice(0, 5),
@@ -146,6 +160,7 @@ export class NeonContentRepository
         id,
         title,
         description,
+        location,
         event_date::text AS "eventDate",
         start_time::text AS "startTime",
         end_time::text AS "endTime",
@@ -166,6 +181,7 @@ export class NeonContentRepository
         id,
         title,
         description,
+        location,
         event_date::text AS "eventDate",
         start_time::text AS "startTime",
         end_time::text AS "endTime",
@@ -191,6 +207,7 @@ export class NeonContentRepository
           SET
             title = ${changes.title},
             description = ${changes.description},
+            location = ${changes.location},
             event_date = ${changes.eventDate},
             start_time = ${changes.startTime},
             end_time = ${changes.endTime},
@@ -200,6 +217,7 @@ export class NeonContentRepository
             id,
             title,
             description,
+            location,
             event_date::text AS "eventDate",
             start_time::text AS "startTime",
             end_time::text AS "endTime",
@@ -213,6 +231,7 @@ export class NeonContentRepository
           SET
             title = ${changes.title},
             description = ${changes.description},
+            location = ${changes.location},
             event_date = ${changes.eventDate},
             start_time = ${changes.startTime},
             end_time = ${changes.endTime}
@@ -221,6 +240,7 @@ export class NeonContentRepository
             id,
             title,
             description,
+            location,
             event_date::text AS "eventDate",
             start_time::text AS "startTime",
             end_time::text AS "endTime",
@@ -242,6 +262,7 @@ export class NeonContentRepository
         id,
         title,
         description,
+        location,
         event_date::text AS "eventDate",
         start_time::text AS "startTime",
         end_time::text AS "endTime",
@@ -261,6 +282,7 @@ export class NeonContentRepository
         id,
         title,
         description,
+        location,
         event_date::text AS "eventDate",
         start_time::text AS "startTime",
         end_time::text AS "endTime",

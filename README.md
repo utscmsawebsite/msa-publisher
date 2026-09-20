@@ -117,6 +117,9 @@ SLACK_ALLOWED_USER_IDS
 SLACK_LOG_CHANNEL_ID
 DATABASE_URL
 BLOB_READ_WRITE_TOKEN
+GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL
+GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY
+GOOGLE_CALENDAR_ID
 ```
 
 `SLACK_ALLOWED_USER_IDS` is a comma-separated allowlist of Slack member IDs,
@@ -131,6 +134,42 @@ the bot to that channel and grant it the `chat:write` bot scope.
 the production `/api/slack` URL for the `/event`, `/event-edit`, and `/jummah`
 command Request URLs and the Interactivity Request URL, then disable Socket
 Mode.
+
+### Google Calendar Sync
+
+Successfully creating, editing, or deleting an event, and updating Jummah,
+also syncs a shared **UTSC MSA Community Calendar**. Events map one-to-one to
+calendar entries. Jummah maps to up to two weekly recurring events (first and
+second khutbah) that repeat every Friday. Marking Jummah unavailable
+overrides only that week's occurrence of the first Jummah to "No Jummah on
+Campus" (with the given reason) and cancels that week's second-khutbah
+occurrence if one exists; the underlying weekly schedule is preserved and
+resumes automatically the next time `/jummah` is saved.
+
+Calendar sync failures never block or roll back the underlying save — they
+are logged and reported to `SLACK_LOG_CHANNEL_ID` as a warning, matching how
+Blob cleanup failures are already handled.
+
+Authentication uses a Google service account rather than a user's Gmail
+login, so there's no OAuth consent flow or refresh tokens to maintain:
+
+```text
+GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL
+GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY
+GOOGLE_CALENDAR_ID
+```
+
+One-time setup (whoever holds the Google Cloud project):
+
+1. Create/reuse a Google Cloud project and enable the **Google Calendar API**.
+2. Create a service account and generate a JSON key. Use its `client_email`
+   as `GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL` and its `private_key` as
+   `GOOGLE_CALENDAR_SERVICE_ACCOUNT_PRIVATE_KEY` (keep the `\n` escapes as-is;
+   they are unescaped at runtime).
+3. In Google Calendar, share the target calendar with the service account's
+   email address, granting **"Make changes to events"** access.
+4. Set `GOOGLE_CALENDAR_ID` to that calendar's ID (Calendar Settings →
+   Integrate calendar → Calendar ID).
 
 ### Platform Adapters
 
@@ -322,18 +361,18 @@ Slack → Backend → Content├── Slack
 
 ### Tasks
 
-* [ ] Add Slack user authorization
-* [ ] Restrict commands/actions to approved users
+* [x] Add Slack user authorization
+* [x] Restrict commands/actions to approved users
 * [ ] Add publishing destination selection to Slack modals
 * [ ] Implement `SlackAdapter`
 * [ ] Implement `InstagramAdapter`
 * [ ] Integrate the Meta Instagram publishing API
-* [ ] Implement `GoogleCalendarAdapter`
-* [ ] Create Google Calendar events where applicable
-* [ ] Store external platform IDs
+* [x] Implement `GoogleCalendarAdapter`
+* [x] Create Google Calendar events where applicable
+* [x] Store external platform IDs
 * [ ] Create lightweight publication logging
-* [ ] Return per-platform publishing results to Slack
-* [ ] Handle partial publishing failures
+* [x] Return per-platform publishing results to Slack (Google Calendar only so far)
+* [x] Handle partial publishing failures (Google Calendar only so far)
 * [ ] Add configuration for channel/calendar/platform destinations
 
 A Slack publishing form could eventually contain:

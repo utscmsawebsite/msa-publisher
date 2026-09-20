@@ -79,10 +79,12 @@ export interface UpdateEventResult {
 function validateEventDetails(event: EventUpdate): EventUpdate {
   const title = event.title.trim();
   const description = event.description.trim();
+  const location = event.location.trim();
 
   if (
     !title ||
     !description ||
+    !location ||
     !event.eventDate ||
     !event.startTime ||
     !event.endTime
@@ -108,6 +110,7 @@ function validateEventDetails(event: EventUpdate): EventUpdate {
     ...event,
     title,
     description,
+    location,
   };
 }
 

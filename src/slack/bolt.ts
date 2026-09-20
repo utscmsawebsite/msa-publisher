@@ -1,5 +1,6 @@
 import { App } from "@slack/bolt";
 import type { Receiver } from "@slack/bolt";
+import type { CalendarService } from "../calendar/calendar.service.js";
 import type {
   EventDraft,
   EventUpdate,
@@ -369,6 +370,7 @@ function getAllowedSlackUserIds(): ReadonlySet<string> {
 export function createSlackApp(
   contentService: ContentService,
   jummahService: JummahService,
+  calendarService: CalendarService,
   options: SlackAppOptions = {},
 ): App {
   const botToken = process.env.SLACK_BOT_TOKEN;
@@ -411,6 +413,20 @@ export function createSlackApp(
     });
   }
 
+  const syncCalendarBestEffort = async (
+    action: string,
+    context: Record<string, unknown>,
+    task: () => Promise<void>,
+  ): Promise<boolean> => {
+    try {
+      await task();
+      return true;
+    } catch (error) {
+      logError("calendar_sync_failed", error, { action, ...context });
+      return false;
+    }
+  };
+
   const cleanupStaleEvents = async (
     client: App["client"],
     triggeredBy: "event_saved" | "event_edited",
@@ -423,6 +439,16 @@ export function createSlackApp(
         return;
       }
 
+      let calendarCleanupSucceeded = true;
+      for (const event of result.deletedEvents) {
+        const succeeded = await syncCalendarBestEffort(
+          "stale_event_deleted",
+          { eventId: event.id },
+          () => calendarService.syncEventDeleted(event.id),
+        );
+        calendarCleanupSucceeded = calendarCleanupSucceeded && succeeded;
+      }
+
       logInfo("stale_events_deleted", {
         triggeredBy,
         slackUserId,
@@ -432,6 +458,7 @@ export function createSlackApp(
           0,
         ),
         blobCleanupSucceeded: result.blobCleanupSucceeded,
+        calendarCleanupSucceeded,
       });
 
       if (!result.blobCleanupSucceeded) {
@@ -450,6 +477,9 @@ export function createSlackApp(
           result.blobCleanupSucceeded
             ? "Blob cleanup: complete"
             : "⚠️ Some stale Blob images may require manual cleanup.",
+          calendarCleanupSucceeded
+            ? "Calendar cleanup: complete"
+            : "⚠️ Some stale Calendar events may require manual cleanup.",
         ].join("\n"),
         {
           triggeredBy,
@@ -561,6 +591,18 @@ export function createSlackApp(
                   type: "plain_text_input",
                   action_id: "description_input",
                   multiline: true,
+                },
+              },
+              {
+                type: "input",
+                block_id: "event_location",
+                label: {
+                  type: "plain_text",
+                  text: "Location",
+                },
+                element: {
+                  type: "plain_text_input",
+                  action_id: "location_input",
                 },
               },
               {
@@ -1023,6 +1065,19 @@ export function createSlackApp(
                 },
                 {
                   type: "input",
+                  block_id: "edit_event_location",
+                  label: {
+                    type: "plain_text",
+                    text: "Location",
+                  },
+                  element: {
+                    type: "plain_text_input",
+                    action_id: "location_input",
+                    initial_value: event.location ?? "",
+                  },
+                },
+                {
+                  type: "input",
                   block_id: "edit_event_date",
                   label: {
                     type: "plain_text",
@@ -1189,6 +1244,7 @@ export function createSlackApp(
 
     const title = values.event_title?.title_input?.value;
     const description = values.event_description?.description_input?.value;
+    const location = values.event_location?.location_input?.value;
     const eventDate = values.event_date?.event_date_input?.selected_date;
     const startTime = values.start_time?.start_time_input?.selected_time;
     const endTime = values.end_time?.end_time_input?.selected_time;
@@ -1201,6 +1257,9 @@ export function createSlackApp(
     }
     if (!description?.trim()) {
       errors.event_description = "Enter an event description.";
+    }
+    if (!location?.trim()) {
+      errors.event_location = "Enter an event location.";
     }
     if (!eventDate) {
       errors.event_date = "Choose an event date.";
@@ -1235,7 +1294,14 @@ export function createSlackApp(
     await ack();
 
     // The checks above narrow these values for our domain model.
-    if (!title || !description || !eventDate || !startTime || !endTime) {
+    if (
+      !title ||
+      !description ||
+      !location ||
+      !eventDate ||
+      !startTime ||
+      !endTime
+    ) {
       return;
     }
 
@@ -1243,6 +1309,7 @@ export function createSlackApp(
       type: "event",
       title,
       description,
+      location,
       eventDate,
       startTime,
       endTime,
@@ -1272,11 +1339,18 @@ export function createSlackApp(
         const { event } = result;
 
         if (result.created) {
+          const calendarSyncSucceeded = await syncCalendarBestEffort(
+            "event_created",
+            { eventId: event.id },
+            () => calendarService.syncEventCreated(event),
+          );
+
           logInfo("event_created", {
             eventId: event.id,
             slackSubmissionId: event.slackSubmissionId,
             slackUserId: event.createdBySlackUserId,
             imageCount: event.imageUrls.length,
+            calendarSyncSucceeded,
             durationMs: Date.now() - startedAt,
           });
 
@@ -1291,6 +1365,9 @@ export function createSlackApp(
               `Submitted by: <@${event.createdBySlackUserId}>`,
               `Images: ${event.imageUrls.length}`,
               `Event ID: ${event.id}`,
+              calendarSyncSucceeded
+                ? "Calendar: synced"
+                : "⚠️ Calendar sync failed — check logs.",
             ].join("\n"),
             {
               eventId: event.id,
@@ -1479,9 +1556,16 @@ export function createSlackApp(
           updatedBySlackUserId: body.user.id,
         });
 
+        const calendarSyncSucceeded = await syncCalendarBestEffort(
+          "jummah_updated",
+          {},
+          () => calendarService.syncJummahSchedule(jummah),
+        );
+
         logInfo("jummah_updated", {
           slackUserId: body.user.id,
           hasSecondJummah: Boolean(jummah.secondStartTime),
+          calendarSyncSucceeded,
         });
 
         await sendSlackLog(
@@ -1497,6 +1581,9 @@ export function createSlackApp(
               ? `Second: ${jummah.secondStartTime}–${jummah.secondEndTime}\nSecond location: ${jummah.secondLocation}`
               : "Second: N/A",
             `Updated by: <@${body.user.id}>`,
+            calendarSyncSucceeded
+              ? "Calendar: synced"
+              : "⚠️ Calendar sync failed — check logs.",
           ].join("\n"),
           {
             slackUserId: body.user.id,
@@ -1595,8 +1682,15 @@ export function createSlackApp(
             updatedBySlackUserId: body.user.id,
           });
 
+          const calendarSyncSucceeded = await syncCalendarBestEffort(
+            "jummah_marked_unavailable",
+            {},
+            () => calendarService.syncJummahUnavailable(jummah),
+          );
+
           logInfo("jummah_marked_unavailable", {
             slackUserId: body.user.id,
+            calendarSyncSucceeded,
           });
 
           await sendSlackLog(
@@ -1606,6 +1700,9 @@ export function createSlackApp(
               "🚫 Jummah marked unavailable",
               `Message: ${jummah.unavailableMessage}`,
               `Updated by: <@${body.user.id}>`,
+              calendarSyncSucceeded
+                ? "Calendar: synced"
+                : "⚠️ Calendar sync failed — check logs.",
             ].join("\n"),
             {
               slackUserId: body.user.id,
@@ -1687,6 +1784,7 @@ export function createSlackApp(
     const title = values.edit_event_title?.title_input?.value;
     const description =
       values.edit_event_description?.description_input?.value;
+    const location = values.edit_event_location?.location_input?.value;
     const eventDate =
       values.edit_event_date?.event_date_input?.selected_date;
     const startTime =
@@ -1704,6 +1802,9 @@ export function createSlackApp(
     }
     if (!description?.trim()) {
       errors.edit_event_description = "Enter an event description.";
+    }
+    if (!location?.trim()) {
+      errors.edit_event_location = "Enter an event location.";
     }
     if (!eventDate) {
       errors.edit_event_date = "Choose an event date.";
@@ -1740,6 +1841,7 @@ export function createSlackApp(
       !metadata.eventId ||
       !title ||
       !description ||
+      !location ||
       !eventDate ||
       !startTime ||
       !endTime
@@ -1750,6 +1852,7 @@ export function createSlackApp(
     const changes: EventUpdate = {
       title,
       description,
+      location,
       eventDate,
       startTime,
       endTime,
@@ -1787,12 +1890,19 @@ export function createSlackApp(
 
         const { event } = result;
 
+        const calendarSyncSucceeded = await syncCalendarBestEffort(
+          "event_updated",
+          { eventId: event.id },
+          () => calendarService.syncEventUpdated(event),
+        );
+
         logInfo("event_updated", {
           eventId: event.id,
           slackUserId: body.user.id,
           imagesReplaced: result.imagesReplaced,
           imageCount: event.imageUrls.length,
           oldImageCleanupSucceeded: result.oldImageCleanupSucceeded,
+          calendarSyncSucceeded,
         });
 
         if (!result.oldImageCleanupSucceeded) {
@@ -1816,6 +1926,9 @@ export function createSlackApp(
             result.oldImageCleanupSucceeded
               ? "Old-image cleanup: complete"
               : "⚠️ Some replaced Blob images may require manual cleanup.",
+            calendarSyncSucceeded
+              ? "Calendar: synced"
+              : "⚠️ Calendar sync failed — check logs.",
             `Event ID: ${event.id}`,
           ].join("\n"),
           {
@@ -1918,11 +2031,18 @@ export function createSlackApp(
           throw new Error("The event no longer exists.");
         }
 
+        const calendarSyncSucceeded = await syncCalendarBestEffort(
+          "event_deleted",
+          { eventId: result.event.id },
+          () => calendarService.syncEventDeleted(result.event.id),
+        );
+
         logInfo("event_deleted", {
           eventId: result.event.id,
           slackUserId: body.user.id,
           imageCount: result.event.imageUrls.length,
           blobCleanupSucceeded: result.blobCleanupSucceeded,
+          calendarSyncSucceeded,
         });
 
         if (!result.blobCleanupSucceeded) {
@@ -1943,6 +2063,9 @@ export function createSlackApp(
             result.blobCleanupSucceeded
               ? `Images deleted: ${result.event.imageUrls.length}`
               : "⚠️ Some Blob images may require manual cleanup.",
+            calendarSyncSucceeded
+              ? "Calendar: synced"
+              : "⚠️ Calendar sync failed — check logs.",
           ].join("\n"),
           {
             eventId: result.event.id,

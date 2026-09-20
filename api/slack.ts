@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { HTTPReceiver } from "@slack/bolt";
 import { waitUntil } from "@vercel/functions";
 import {
+  createCalendarService,
   createContentService,
   createJummahService,
   requireEnvironmentVariable,
@@ -14,10 +15,15 @@ const receiver = new HTTPReceiver({
   processBeforeResponse: false,
 });
 
-createSlackApp(createContentService(), createJummahService(), {
-  receiver,
-  scheduleBackgroundTask: waitUntil,
-});
+createSlackApp(
+  createContentService(),
+  createJummahService(),
+  createCalendarService(),
+  {
+    receiver,
+    scheduleBackgroundTask: waitUntil,
+  },
+);
 
 export default function handler(
   request: IncomingMessage,

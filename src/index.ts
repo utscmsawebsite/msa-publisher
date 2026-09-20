@@ -1,9 +1,17 @@
 import "dotenv/config";
-import { createContentService, createJummahService } from "./application.js";
+import {
+  createCalendarService,
+  createContentService,
+  createJummahService,
+} from "./application.js";
 import { createSlackApp } from "./slack/bolt.js";
 
 async function main() {
-  const app = createSlackApp(createContentService(), createJummahService());
+  const app = createSlackApp(
+    createContentService(),
+    createJummahService(),
+    createCalendarService(),
+  );
 
   await app.start();
   console.log("⚡️ Slack bot is running!");
