@@ -1,11 +1,23 @@
 type LogDetails = Record<string, unknown>;
 
-function serializeError(error: unknown): { name: string; message: string } {
+interface SerializedError {
+  name: string;
+  message: string;
+  cause?: SerializedError;
+}
+
+function serializeError(error: unknown, depth = 0): SerializedError {
   if (error instanceof Error) {
-    return {
+    const serialized: SerializedError = {
       name: error.name,
       message: error.message,
     };
+
+    if (error.cause !== undefined && depth < 3) {
+      serialized.cause = serializeError(error.cause, depth + 1);
+    }
+
+    return serialized;
   }
 
   return {

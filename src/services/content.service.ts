@@ -147,11 +147,19 @@ export class ContentService {
       const imageUrls: string[] = [];
 
       for (const [position, imageUpload] of imageUploads.entries()) {
-        const stored = await this.imageStorage.saveEventImage(
-          id,
-          position,
-          imageUpload,
-        );
+        let stored;
+        try {
+          stored = await this.imageStorage.saveEventImage(
+            id,
+            position,
+            imageUpload,
+          );
+        } catch (error) {
+          throw new Error(
+            `Blob upload failed for image ${position + 1} (${imageUpload.originalName}, ${imageUpload.sizeBytes ?? "unknown"} bytes).`,
+            { cause: error },
+          );
+        }
         storedPathnames.push(stored.pathname);
 
         imageUrls.push(stored.url);
@@ -230,11 +238,19 @@ export class ContentService {
 
     try {
       for (const [position, imageUpload] of imageUploads.entries()) {
-        const stored = await this.imageStorage.saveEventImage(
-          replacementStorageKey,
-          position,
-          imageUpload,
-        );
+        let stored;
+        try {
+          stored = await this.imageStorage.saveEventImage(
+            replacementStorageKey,
+            position,
+            imageUpload,
+          );
+        } catch (error) {
+          throw new Error(
+            `Blob upload failed for replacement image ${position + 1} (${imageUpload.originalName}, ${imageUpload.sizeBytes ?? "unknown"} bytes).`,
+            { cause: error },
+          );
+        }
         replacementPathnames.push(stored.pathname);
         replacementUrls.push(stored.url);
       }

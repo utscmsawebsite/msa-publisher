@@ -1,8 +1,10 @@
+import type { Buffer } from "node:buffer";
+
 export interface ImageUpload {
   originalName: string;
   mimeType: string;
   sizeBytes: number | null;
-  body: ReadableStream<Uint8Array>;
+  body: Buffer;
 }
 
 export interface StoredImage {

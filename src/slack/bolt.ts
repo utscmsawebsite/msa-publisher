@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { App } from "@slack/bolt";
 import type { Receiver } from "@slack/bolt";
 import type { CalendarService } from "../calendar/calendar.service.js";
@@ -49,11 +50,13 @@ async function downloadSlackImages(
         );
       }
 
+      const body = Buffer.from(await response.arrayBuffer());
+
       return {
         originalName: file.name,
         mimeType: file.mimetype,
-        sizeBytes: file.size ?? null,
-        body: response.body,
+        sizeBytes: file.size ?? body.byteLength,
+        body,
       };
     }),
   );
