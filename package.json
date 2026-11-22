@@ -5,6 +5,9 @@
   "main": "dist/src/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "dev:volunteers": "tsx src/volunteer-index.ts",
+    "check:volunteers": "tsx src/volunteer-doctor.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "start": "node dist/src/index.js"
@@ -23,13 +26,18 @@
   "homepage": "https://github.com/utscmsawebsite/msa-publisher#readme",
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@slack/bolt": "^5.1.0",
     "@vercel/blob": "^2.8.0",
     "@vercel/functions": "^3.9.7",
-    "dotenv": "^17.4.2"
+    "dejavu-fonts-ttf": "^2.37.3",
+    "dotenv": "^17.4.2",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   }

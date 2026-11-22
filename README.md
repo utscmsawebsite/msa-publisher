@@ -171,6 +171,257 @@ One-time setup (whoever holds the Google Cloud project):
 4. Set `GOOGLE_CALENDAR_ID` to that calendar's ID (Calendar Settings →
    Integrate calendar → Calendar ID).
 
+### Volunteer Hours
+
+A separate Slack app, installed in the **community-volunteering workspace**
+(not the exec workspace), lets volunteers log hours and approvers sign them
+off. It runs from the same repo and the same Neon database but is its own
+serverless function (`api/slack-volunteers.ts`) with its own tokens, so it
+never affects `/event` or `/jummah`.
+
+Commands:
+
+```text
+/volunteer         Everyone. Home screen: Log hours (first run sets up your
+                   profile), My hours (a card per request with Edit), My profile
+/volunteer-exec    Execs (staff who can approve or manage) and admins:
+                   Pending requests (approve or disapprove from a queue),
+                   CCR report (combined CSV + PDF), Volunteer letters
+/volunteer-admin   Admins (can manage, or listed in SLACK_VOLUNTEER_ADMIN_USER_IDS).
+                   Everything execs get, plus: Log hours for someone, Find a
+                   volunteer's requests (fix or delete), and setup (staff,
+                   categories, events, years, link a volunteer to Slack)
+```
+
+Each command opens a home screen of buttons. A button replaces the screen with
+the form or list it leads to. Higher roles can use the lower commands too.
+
+Flow: a volunteer picks a category and adds one or more dates with hours (max
+24 h per person per day). A card with Approve / Disapprove buttons is posted
+to a private approvals channel. Any approver can decide (self-approval is
+allowed); disapproving requires a reason. The volunteer gets a DM either way
+and, if disapproved, can fix the request from `/volunteer` -> **My hours** instead of starting
+over. Entries must fall inside a volunteer year.
+
+### Volunteer records and student numbers
+
+A volunteer is identified by their **student number**, not by their Slack
+account, and a profile follows the MSA general volunteer sign-up form by
+student type:
+
+| Student type | Fields |
+| --- | --- |
+| UofT student | first name, last name, preferred email, UofT email, UTORid, student number |
+| University student outside UofT | first name, last name, preferred email, university email, university student ID |
+| High school student | first name, last name, preferred email, email, student number |
+
+The preferred email (asked of everyone on the first page of the form) is stored
+for contacting the volunteer. The email from the volunteer's own section is the
+one used for matching and in the reports.
+
+The student number is unique per student type (case-insensitive), and a
+UTORid is unique too. Phone numbers, emergency contacts and parent/guardian
+details from the sign-up form are not collected here, since hours reporting
+doesn't use them.
+
+### Fixing mistakes: editing and deleting requests
+
+Nothing is deleted and re-entered. A request is edited in place (category,
+event, description, and the dates and hours; dates can be added or dropped).
+
+| Who | How | What happens |
+| --- | --- | --- |
+| The volunteer | `/volunteer` -> **My hours** -> **Edit** on the request's card (pending, approved or disapproved) | The request goes **back to pending** and an approver reviews it again. The approval card is updated and the approvers are nudged in its thread. |
+| An exec | `/volunteer-admin` -> **Find a volunteer's requests** -> pick the volunteer -> **Edit** on one of their request cards | The change is **approved immediately**. The volunteer is told. |
+| An exec | the same form, "Delete this whole request instead" | The request and its dates are deleted, for example hours entered for the wrong person. Execs only. |
+
+Rules:
+
+- **Locked once sent to CCR.** If any hour in a request was marked as sent to
+  CCR, nobody can edit or delete it (the report already went out). An exec logs
+  a correction as a new entry instead.
+- **Edits don't count against themselves.** The 24 hour daily cap ignores the
+  request being edited, but counts everything else.
+- **Approved hours leave the reports while they wait.** When a volunteer edits
+  approved hours, the request is pending again until an approver approves it,
+  so it drops out of reports in the meantime.
+- **A no-op edit changes nothing,** so saving without changes never reopens
+  approved hours.
+- **Everything is recorded.** Every edit and deletion writes a row to
+  `volunteer_submission_changes` with who did it, when, and the request before
+  and after. The record survives a deleted request, and the log channel gets a
+  line when an exec changes someone else's hours.
+- A request keeps its own category and event even if an exec later deactivates
+  them, so fixing hours never forces a change.
+- **An approver can't approve hours they didn't see.** Each Approve and
+  Disapprove button carries the version of the request the card showed. If the
+  request is edited while an approver is looking at the old card, their click is
+  refused ("that request was just edited"), the card is refreshed, and they
+  decide again on the new hours.
+
+Seeing records: volunteers see only their own (`/volunteer` -> **My hours**). Execs (staff with
+the manage permission, plus the `SLACK_VOLUNTEER_ADMIN_USER_IDS` users) can look
+up any volunteer with `/volunteer-admin` -> **Find a volunteer's requests**, and staff can generate reports.
+Permissions live in the `volunteer_staff` table (`can_approve`, `can_manage`),
+not in Slack roles, and are managed in `/volunteer-admin`.
+
+### Logging hours for someone else (execs)
+
+Every request records who submitted it. Execs (staff with the manage
+permission, plus the `SLACK_VOLUNTEER_ADMIN_USER_IDS` users) can use
+`/volunteer-admin` -> **Log hours for someone** to log hours for a volunteer, including one with no
+Slack account. They choose exactly one of:
+
+- **Find a volunteer**: search by name, UTORid, student number or email.
+- **Add them as a new volunteer**: enter the same details as for any
+  volunteer. The record is stored under an `ext_...` placeholder key until the
+  volunteer is on Slack.
+
+Because an exec entered the hours, **they are approved on entry**: no second
+approver is needed. The exec is recorded as both submitter and approver, and a
+card (without buttons) is still posted to the approvals channel as a record,
+reading "Entered by @exec on the volunteer's behalf". A volunteer on Slack is
+DM'd and sees "(entered by staff)" in `/volunteer` -> **My hours**; a volunteer without Slack
+just isn't messaged. An existing volunteer's details are never overwritten this
+way.
+
+**When that volunteer later joins Slack.** If they run `/volunteer` -> **Log hours** and
+enter details that match the record an exec added, their Slack account is
+linked to it automatically and the hours carry over. The match is strict. It
+needs the student number **and** a second identifier to agree (UTORid for UofT
+students, email for everyone else), and the record must not already belong to a
+Slack account. Linking is a single database statement (`ON UPDATE CASCADE`
+moves the submissions), so if two accounts claim the same record, exactly one
+wins. Anything weaker is refused with a message, and an exec can resolve it
+from `/volunteer-admin` -> **Link a volunteer to a Slack account**. Two
+existing records are never merged automatically.
+
+Reports and letters (`/volunteer-exec`, execs and admins) are two separate
+forms. Only approved hours are exported, and the files are sent to the
+requester in a DM (nothing is hosted publicly):
+
+- **CCR report** (a combined CSV + PDF). Pick a volunteer year, which students
+  to include (UofT only by default, since CCR is UofT-specific), whether to
+  include only entries not yet sent to CCR, a sort (by name or by date), and
+  optionally limit it to chosen volunteers. The CSV has a UTF-8 BOM so Excel shows accented names
+  correctly, and cells starting with `= + - @` are prefixed with `'` so
+  volunteer-typed text can't run as a spreadsheet formula.
+- **Volunteer letters** (the Volunteer letters form: a year and the volunteers),
+  one letterhead PDF per selected volunteer, listing all of their approved hours. Each letter has the MSA logo and is signed with the
+  name and title of the staff member who generates it (taken from their staff
+  record, so set a title for anyone who will make letters).
+
+Generating a combined report does not change anything. The message with the
+files has a **Mark entries as sent to CCR** button; only after pressing it are
+those entries stamped, so the next "not yet sent" export skips them and picks
+up anything approved later. Every generation is logged in
+`volunteer_report_exports`, with the entries each one included.
+
+Admin (`/volunteer-admin`): admins (`can_manage`, or listed in
+`SLACK_VOLUNTEER_ADMIN_USER_IDS`) get a home screen with Volunteers (log hours
+for someone, find a volunteer's requests, link a volunteer to Slack), Reports
+and letters, and Setup. Setup has four sections, each a list with an Edit
+button per row, a **+ Add** button and a **Back** button:
+
+- **Years:** each year shows its dates, whether it is current, past or
+  upcoming, and its totals (volunteers, approved, pending and sent-to-CCR
+  hours). A year's page lists the events whose date falls inside it, and has
+  **Edit year**, **Generate a report** and **+ Add event**. Years are not
+  seeded: an admin creates each one (for example `2026/27 Volunteer Year`).
+  Volunteers can only log dates inside a year that exists. A year can always
+  be renamed; its dates can only change while every date already logged stays
+  inside them (the database enforces this inside the update); and it can be
+  deleted only while nothing is logged against it and no report used it.
+- **Staff:** add, edit (title, permissions) or remove. Limited to the Slack IDs
+  in `SLACK_VOLUNTEER_ADMIN_USER_IDS`. A blank title clears it.
+- **Categories:** add (optionally "must pick an event"), rename, deactivate.
+- **Events:** the "Specific Event" pick-list: add, rename, change the date,
+  deactivate.
+
+Every change is posted to the log channel. These screens are gated by the staff
+table, not by channel, and every button re-checks permission when it is
+pressed, so they work from any channel or DM but not for anyone who has lost
+access.
+
+Setup (one time). For a dev app in any workspace, paste
+`docs/volunteer-slack-app.dev.manifest.yml` at api.slack.com/apps -> Create New
+App -> From a manifest; the steps below are the manual equivalent for production.
+
+To take a tested dev app live on Vercel, follow
+[docs/volunteer-go-live.md](docs/volunteer-go-live.md); its production manifest is
+`docs/volunteer-slack-app.manifest.yml`.
+
+1. Create a Slack app in the community workspace. Slash commands (Request URL
+   `https://<deployment>/api/slack-volunteers`): `/volunteer`,
+   `/volunteer-exec`, `/volunteer-admin`.
+   Turn on Interactivity with the same URL, and set the same URL as the
+   **Options Load URL** (needed for the volunteer search boxes). Bot scopes: `commands`,
+   `chat:write`, `im:write`, `files:write`, `users:read`. Install it.
+2. Create a private approvals channel and invite the bot.
+3. Set these environment variables:
+
+```text
+SLACK_VOLUNTEER_BOT_TOKEN
+SLACK_VOLUNTEER_SIGNING_SECRET
+SLACK_VOLUNTEER_APPROVALS_CHANNEL_ID
+SLACK_VOLUNTEER_ADMIN_USER_IDS    comma-separated Slack IDs who can manage staff
+SLACK_VOLUNTEER_LOG_CHANNEL_ID    (optional ops log)
+SLACK_VOLUNTEER_APP_TOKEN         (local Socket Mode only)
+VOLUNTEER_ORG_NAME                (optional, defaults to "UTSC MSA")
+VOLUNTEER_LETTERHEAD_CONTACT      (optional contact line printed on letters)
+VOLUNTEER_LETTERHEAD_LOGO_PATH    (optional PNG or JPG path; the MSA logo is built in)
+```
+
+4. Apply `migrations/004_create_volunteer_tables.sql` by hand with `psql`,
+   then confirm with `\d`. It seeds the General / Jummah / Specific Event
+   categories. It does not create a volunteer year.
+5. Open `/volunteer-admin` as one of the `SLACK_VOLUNTEER_ADMIN_USER_IDS`
+   users, add the staff (with their title) and create the current volunteer
+   year. Slack user IDs are per workspace, so use the IDs from the community
+   workspace. (Raw SQL also works:
+   `INSERT INTO volunteer_staff (slack_user_id, display_name, title, can_approve, can_manage, is_primary) VALUES (...)`.)
+
+Only one staff member can be `is_primary`; they are @mentioned on each card.
+
+Local development uses Socket Mode with a dev Slack app, and **never touches
+your real database**: `npm run dev:volunteers` refuses to start unless
+`.env.volunteers` provides its own `DATABASE_URL` (a Neon test branch).
+`npm run check:volunteers` checks the Slack tokens and the test database
+without printing any secret. The full walkthrough, with a step-by-step test
+script, is in [`docs/volunteer-testing.md`](docs/volunteer-testing.md).
+
+#### Isolation from the live bot
+
+The volunteer system is wired up in `src/volunteer-application.ts`, not
+`src/application.ts`, and only `api/slack-volunteers.ts` and
+`src/volunteer-index.ts` import it. The event and Jummah functions that serve
+the live bot and website therefore never load volunteer code or the PDF
+libraries, so they can't be slowed down or broken by it. A test
+(`src/volunteer-isolation.test.ts`) fails if an import ever breaks that.
+
+#### Tests
+
+```bash
+npm test
+```
+
+runs the unit tests: service rules (the in-memory repository), the Slack view
+builders, and a check that every modal and message the bot builds stays inside
+Slack's limits (title length, 100 options, 3000 characters per section,
+duplicate block IDs, and so on) even with worst-case data.
+
+The real SQL (the migration, constraints, the atomic edit and delete
+statements, linking a volunteer to Slack, concurrent claims) is covered by an
+integration test that is skipped unless you point it at a Postgres database:
+
+```bash
+VOLUNTEER_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/postgres npm test
+```
+
+It creates a uniquely named schema, applies `migrations/004` into it, runs the
+whole scenario, and drops the schema afterwards, so it touches nothing else in
+that database. Still use a local or throwaway database, never production.
+
 ### Platform Adapters
 
 External platforms should be isolated behind adapters.

@@ -2,6 +2,10 @@
   "functions": {
     "api/slack.ts": {
       "maxDuration": 300
+    },
+    "api/slack-volunteers.ts": {
+      "maxDuration": 300,
+      "includeFiles": "node_modules/dejavu-fonts-ttf/ttf/DejaVuSans*.ttf"
     }
   }
 }

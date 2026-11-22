@@ -1,0 +1,55 @@
+# Slack app manifest for the volunteer-hours bot, DEV / Socket Mode.
+#
+# Use it at https://api.slack.com/apps -> Create New App -> From a manifest,
+# pick the workspace, and paste this file. Socket Mode means no public URL is
+# needed, so it works with `npm run dev:volunteers` on your own machine.
+#
+# After creating the app (full walkthrough: docs/volunteer-testing.md):
+#   1. Basic Information -> App-Level Tokens -> generate one with the
+#      `connections:write` scope  -> SLACK_VOLUNTEER_APP_TOKEN (xapp-...)
+#   2. Install App -> Install to Workspace -> Bot User OAuth Token
+#      -> SLACK_VOLUNTEER_BOT_TOKEN (xoxb-...)
+#   3. Invite the bot to the approvals channel (/invite @MSA Volunteer Hours).
+#
+# The Signing Secret (Basic Information) is NOT needed for local Socket Mode. It
+# is only for the production HTTP deployment (SLACK_VOLUNTEER_SIGNING_SECRET).
+#
+# For production (Vercel): if this dev app is already installed in the workspace
+# you are going live in, switch THIS app instead of installing a second one
+# (two apps with the same slash commands clash). Otherwise create the app in
+# that workspace from a copy of this file. Either way, set
+# `socket_mode_enabled: false`, and add
+# `url: https://<deployment>/api/slack-volunteers` to every slash command and
+# `request_url` and `message_menu_options_url` (the same URL; it powers the
+# volunteer search boxes) under settings.interactivity.
+display_information:
+  name: MSA Volunteer Hours (dev)
+  description: Log, approve and report UTSC MSA volunteer hours.
+features:
+  bot_user:
+    display_name: MSA Volunteer Hours
+    always_online: false
+  slash_commands:
+    - command: /volunteer
+      description: Log your hours, see your hours, edit your profile
+      should_escape: false
+    - command: /volunteer-exec
+      description: Exec tools - reports and letters (execs only)
+      should_escape: false
+    - command: /volunteer-admin
+      description: Admin tools - volunteers, years, staff, events (admins only)
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - commands
+      - chat:write
+      - im:write
+      - files:write
+      - users:read
+settings:
+  interactivity:
+    is_enabled: true
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false

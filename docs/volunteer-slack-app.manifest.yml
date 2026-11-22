@@ -1,0 +1,55 @@
+# Slack app manifest for the volunteer-hours bot, PRODUCTION / HTTP (Vercel).
+#
+# Use it to switch the existing "MSA Volunteer Hours (dev)" app over to the
+# hosted version (full walkthrough: docs/volunteer-go-live.md):
+#
+#   1. Replace every https://YOUR-DEPLOYMENT.vercel.app below with your real
+#      deployment address (the same host your /event Slack app already uses).
+#   2. api.slack.com/apps -> your app -> App Manifest -> YAML -> paste this
+#      whole file -> Save Changes.
+#   3. Slack may ask you to reinstall the app. Do it (the scopes are unchanged,
+#      so the bot token stays the same).
+#
+# Do this only AFTER the deployment is live and its environment variables are
+# set, and stop `npm run dev:volunteers` first. Once Socket Mode is off, the
+# local dev bot can no longer receive anything from this app. To go back to
+# local testing, paste docs/volunteer-slack-app.dev.manifest.yml again.
+#
+# The one URL does three jobs: slash commands, buttons and forms, and the
+# volunteer search boxes (message_menu_options_url).
+display_information:
+  name: MSA Volunteer Hours
+  description: Log, approve and report UTSC MSA volunteer hours.
+features:
+  bot_user:
+    display_name: MSA Volunteer Hours
+    always_online: false
+  slash_commands:
+    - command: /volunteer
+      url: https://YOUR-DEPLOYMENT.vercel.app/api/slack-volunteers
+      description: Log your hours, see your hours, edit your profile
+      should_escape: false
+    - command: /volunteer-exec
+      url: https://YOUR-DEPLOYMENT.vercel.app/api/slack-volunteers
+      description: Exec tools - reports and letters (execs only)
+      should_escape: false
+    - command: /volunteer-admin
+      url: https://YOUR-DEPLOYMENT.vercel.app/api/slack-volunteers
+      description: Admin tools - volunteers, years, staff, events (admins only)
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - commands
+      - chat:write
+      - im:write
+      - files:write
+      - users:read
+settings:
+  interactivity:
+    is_enabled: true
+    request_url: https://YOUR-DEPLOYMENT.vercel.app/api/slack-volunteers
+    message_menu_options_url: https://YOUR-DEPLOYMENT.vercel.app/api/slack-volunteers
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
