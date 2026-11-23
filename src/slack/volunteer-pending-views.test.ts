@@ -108,4 +108,17 @@ describe("the pending queue screen", () => {
     assert.ok(text(screen({ notice: "Approved Jane's 2 h." })).includes("✅ Approved Jane's 2 h."));
     assert.ok(!text(screen({ notice: "⚠️ Already decided" })).includes("✅"));
   });
+
+  it("tells an admin who can't approve how to get the buttons, and an exec without that tip", () => {
+    const base = { requests: [request()], total: 1, canApprove: false };
+    const forAdmin = JSON.stringify(buildPendingView({ ...base, back: "admin" }));
+    const forExec = JSON.stringify(buildPendingView({ ...base, back: "exec" }));
+
+    assert.ok(forAdmin.includes("Setup, Staff"));
+    assert.ok(forAdmin.includes("Can approve hours"));
+    assert.ok(!forExec.includes("Setup, Staff"));
+    assert.ok(forExec.includes("only staff with the approve permission"));
+    assert.ok(!forAdmin.includes(actionIds.approve), "still no buttons");
+  });
 });
+

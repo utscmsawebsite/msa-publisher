@@ -408,14 +408,20 @@ describe("approval buttons carry the version they were shown with", () => {
   });
 
   it("reads a button value back, tolerating older values with no version", () => {
-    assert.deepEqual(parseDecisionValue("s1:3"), { submissionId: "s1", version: 3 });
+    assert.deepEqual(parseDecisionValue("s1:3"), { submissionId: "s1", version: 3, returnTo: null });
     assert.deepEqual(
       parseDecisionValue("30000000-0000-4000-8000-000000000001:0"),
-      { submissionId: "30000000-0000-4000-8000-000000000001", version: 0 },
+      { submissionId: "30000000-0000-4000-8000-000000000001", version: 0, returnTo: null },
     );
-    assert.deepEqual(parseDecisionValue("s1"), { submissionId: "s1", version: null });
-    assert.deepEqual(parseDecisionValue("s1:abc"), { submissionId: "s1:abc", version: null });
-    assert.deepEqual(parseDecisionValue("s1:-1"), { submissionId: "s1:-1", version: null });
+    assert.deepEqual(parseDecisionValue("s1"), { submissionId: "s1", version: null, returnTo: null });
+    assert.deepEqual(parseDecisionValue("s1:abc"), { submissionId: "s1:abc", version: null, returnTo: null });
+    assert.deepEqual(parseDecisionValue("s1:-1"), { submissionId: "s1:-1", version: null, returnTo: null });
+  });
+
+  it("carries the screen to return to, without confusing it with the version", () => {
+    assert.deepEqual(parseDecisionValue("s1:3|records:U0ABC"), { submissionId: "s1", version: 3, returnTo: "records:U0ABC" });
+    assert.deepEqual(parseDecisionValue("s1:3|"), { submissionId: "s1", version: 3, returnTo: null });
+    assert.deepEqual(parseDecisionValue("s1|records:ext_9"), { submissionId: "s1", version: null, returnTo: "records:ext_9" });
   });
 
   it("carries the version into the disapprove reason modal", () => {

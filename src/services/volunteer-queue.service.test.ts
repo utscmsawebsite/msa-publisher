@@ -80,3 +80,25 @@ describe("the approvers' queue", () => {
     assert.equal(queue?.total, PENDING_QUEUE_PAGE + 3);
   });
 });
+
+describe("who can approve", () => {
+  it("is staff with the approve permission, and nobody else, not even an admin who isn't on the staff list", async () => {
+    const { volunteers } = setup();
+
+    assert.equal(await volunteers.canApprove("UAPPROVER"), true);
+    assert.equal(await volunteers.canApprove("UMANAGER"), false, "managing is not approving");
+    assert.equal(await volunteers.canApprove("UADMIN"), false, "an admin approves only once added to staff with the approve permission");
+    assert.equal(await volunteers.canApprove("USTRANGER"), false);
+  });
+
+  it("matches what decide() allows", async () => {
+    const { volunteers } = setup();
+    const id = await submit(volunteers, "UVOL1", "1", "2026-11-05");
+    const refused = await volunteers.decide({ submissionId: id, decidedBySlackUserId: "UADMIN", decision: "approved", note: null });
+    const allowed = await volunteers.decide({ submissionId: id, decidedBySlackUserId: "UAPPROVER", decision: "approved", note: null });
+
+    assert.equal(refused.status, "not_authorized");
+    assert.equal(allowed.status, "ok");
+  });
+});
+

@@ -12,7 +12,8 @@ import {
   requestEditValue,
   requestTotals,
 } from "./volunteer-request-views.js";
-import { actionIds, formatDate } from "./volunteer-views.js";
+import { checkView } from "./volunteer-view-limits.testkit.js";
+import { actionIds, formatDate, parseDecisionValue } from "./volunteer-views.js";
 
 function request(overrides: Partial<VolunteerSubmission> = {}): VolunteerSubmission {
   return {
@@ -169,6 +170,59 @@ describe("the requests screen", () => {
     ]);
 
     assert.equal(totals, "*Approved:* 11 h   *Pending:* 5.5 h   *Disapproved:* 5.5 h");
+  });
+});
+
+describe("Approve and Disapprove on a volunteer's request list", () => {
+  const decide = { returnTo: "records:UVOL" };
+  const buttons = (requests: VolunteerSubmission[], extra = {}) =>
+    ((screen(requests, extra).blocks ?? []) as Array<{ type: string; elements?: Array<{ action_id?: string; value?: string; style?: string }> }>)
+      .flatMap((block) => (block.type === "actions" ? (block.elements ?? []) : []))
+      .filter((element) => element.action_id === actionIds.approve || element.action_id === actionIds.disapprove);
+
+  it("gives each pending request an Approve and a Disapprove button, only when asked", () => {
+    const pending = request({ id: "p1", version: 2 });
+
+    assert.deepEqual(buttons([pending]), []);
+    const shown = buttons([pending], { decide });
+
+    assert.deepEqual(shown.map((button) => button.action_id), [actionIds.approve, actionIds.disapprove]);
+    assert.deepEqual(shown.map((button) => button.style), ["primary", "danger"]);
+  });
+
+  it("carries the request, the version it showed, and where to come back to", () => {
+    const [approve, disapprove] = buttons([request({ id: "p1", version: 2 })], { decide });
+
+    assert.equal(approve?.value, "p1:2|records:UVOL");
+    assert.equal(disapprove?.value, approve?.value);
+    assert.deepEqual(parseDecisionValue(approve?.value ?? ""), { submissionId: "p1", version: 2, returnTo: "records:UVOL" });
+  });
+
+  it("shows no buttons on requests that are already decided", () => {
+    const decided = [
+      request({ id: "a1", status: "approved" }),
+      request({ id: "r1", status: "rejected", decisionNote: "Wrong date" }),
+    ];
+
+    assert.deepEqual(buttons(decided, { decide }), []);
+  });
+
+  it("keeps the Edit button on every card, and puts the buttons under their own card", () => {
+    const view = screen([request({ id: "p1" }), request({ id: "a1", status: "approved" })], { decide });
+    const blocks = (view.blocks ?? []) as Array<{ type: string; accessory?: { action_id?: string }; elements?: Array<{ action_id?: string }> }>;
+    const first = blocks.findIndex((block) => block.accessory?.action_id === actionIds.editRequest);
+
+    assert.equal(blocks.filter((block) => block.accessory?.action_id === actionIds.editRequest).length, 2);
+    assert.equal(blocks[first + 1]?.elements?.[0]?.action_id, actionIds.approve, "buttons sit right under the pending card");
+    assert.notEqual(blocks[first + 2]?.elements?.[0]?.action_id, actionIds.approve, "none under the decided one");
+  });
+
+  it("stays inside Slack's limits with a full screen of pending requests", () => {
+    const many = Array.from({ length: MAX_REQUEST_CARDS + 5 }, (_, index) => request({ id: `p${index}` }));
+    const view = screen(many, { decide });
+
+    assert.deepEqual(checkView(view as never, "records with buttons", "modal"), []);
+    assert.ok((view.blocks ?? []).length <= 100);
   });
 });
 

@@ -1102,6 +1102,10 @@ export function createVolunteerSlackApp(
       );
     }
 
+    // Approvers can decide a pending request right here, as they can from the
+    // queue and the channel card; everyone else just sees the cards.
+    const canDecide = await volunteerService.canApprove(actorId);
+
     return buildRequestsView({
       title: "Volunteer requests",
       heading: `*${escapeSlackText(profile.fullName)}*\n${requestTotals(requests)}`,
@@ -1110,6 +1114,7 @@ export function createVolunteerSlackApp(
       editBack: `records:${volunteerKey}`,
       emptyText: `${escapeSlackText(profile.fullName)} hasn't logged any hours yet.`,
       notice,
+      ...(canDecide ? { decide: { returnTo: `records:${volunteerKey}` } } : {}),
     });
   };
 
@@ -1810,6 +1815,32 @@ export function createVolunteerSlackApp(
   const queueHomeOf = (blocks: unknown[] | undefined): "exec" | "admin" =>
     backTargetOf(blocks) === "admin" ? "admin" : "exec";
 
+  /** The volunteer whose request list a decision button came from, if it came from one. */
+  const recordsKeyOf = (returnTo: string | null): string | null =>
+    returnTo?.startsWith("records:") && returnTo.length > "records:".length
+      ? returnTo.slice("records:".length)
+      : null;
+
+  /**
+   * A decision made on a volunteer's request list: the same side effects as one
+   * made on the channel card or in the queue (the card updates, the volunteer is
+   * told), then that volunteer's list redraws with what happened at the top.
+   */
+  const finishRecordsDecision = async (
+    client: SlackClient,
+    result: DecisionResult,
+    actorId: string,
+    submissionId: string,
+    viewId: string,
+    volunteerKey: string,
+  ): Promise<void> => {
+    await handleDecision(client, result, actorId, submissionId, null, async () => undefined);
+    await client.views.update({
+      view_id: viewId,
+      view: await buildRecordsListView(actorId, volunteerKey, decisionNotice(result)),
+    });
+  };
+
   app.action(actionIds.approve, async ({ ack, action, body, client }) => {
     await ack();
     const value = "value" in action ? action.value : undefined;
@@ -1818,10 +1849,11 @@ export function createVolunteerSlackApp(
       return;
     }
 
-    const { submissionId, version } = parseDecisionValue(value);
+    const { submissionId, version, returnTo } = parseDecisionValue(value);
     const channelId = body.channel?.id ?? null;
     // Pressed on the approvers' queue (a window) rather than a channel card.
     const queueView = "view" in body && body.view ? body.view : undefined;
+    const recordsKey = queueView ? recordsKeyOf(returnTo) : null;
 
     await background("approve", async () => {
       const result = await volunteerService.decide({
@@ -1831,6 +1863,11 @@ export function createVolunteerSlackApp(
         note: null,
         ...(version !== null ? { expectedVersion: version } : {}),
       });
+
+      if (queueView && recordsKey) {
+        await finishRecordsDecision(client, result, body.user.id, submissionId, queueView.id, recordsKey);
+        return;
+      }
 
       if (queueView) {
         await finishQueueDecision(
@@ -1858,7 +1895,22 @@ export function createVolunteerSlackApp(
       return;
     }
 
-    const { submissionId, version } = parseDecisionValue(value);
+    const { submissionId, version, returnTo } = parseDecisionValue(value);
+    const recordsKey = queueView ? recordsKeyOf(returnTo) : null;
+
+    if (queueView && recordsKey) {
+      // From a volunteer's request list the reason form replaces the list, with
+      // a Back button to it, instead of opening a second window.
+      await background("disapprove_records", async () => {
+        await show(
+          client,
+          queueView.id,
+          buildRejectReasonView(submissionId, version, null, `records:${recordsKey}`),
+          `records:${recordsKey}`,
+        );
+      });
+      return;
+    }
 
     if (queueView) {
       // From the approvers' queue the reason form replaces the queue, with a
@@ -1891,11 +1943,13 @@ export function createVolunteerSlackApp(
   });
 
   app.view(callbackIds.rejectReason, async ({ ack, body, client, view }) => {
-    const { submissionId, version, queue } = parseJsonMetadata<{
+    const { submissionId, version, queue, returnTo } = parseJsonMetadata<{
       submissionId: string;
       version: number | null;
       queue: HubHome;
+      returnTo?: string;
     }>(view.private_metadata);
+    const recordsKey = recordsKeyOf(returnTo ?? null);
     const reason = view.state.values[blockIds.reason]?.reason?.value?.trim();
 
     if (!reason) {
@@ -1908,7 +1962,12 @@ export function createVolunteerSlackApp(
 
     const fromQueue = queue === "exec" || queue === "admin" ? queue : null;
 
-    if (fromQueue) {
+    if (recordsKey) {
+      await ack({
+        response_action: "update",
+        view: buildLoadingView("Volunteer requests", "Saving…"),
+      });
+    } else if (fromQueue) {
       await ack({
         response_action: "update",
         view: buildLoadingView("Pending requests", "Saving…"),
@@ -1929,6 +1988,18 @@ export function createVolunteerSlackApp(
         note: reason,
         ...(typeof version === "number" ? { expectedVersion: version } : {}),
       });
+
+      if (recordsKey) {
+        await finishRecordsDecision(
+          client,
+          result,
+          body.user.id,
+          submissionId,
+          view.id,
+          recordsKey,
+        );
+        return;
+      }
 
       if (fromQueue) {
         await finishQueueDecision(

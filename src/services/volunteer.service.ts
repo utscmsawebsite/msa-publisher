@@ -226,6 +226,13 @@ export class VolunteerService {
     return Boolean(staff?.canManage);
   }
 
+  /** Whether this person is staff with the approve permission. */
+  async canApprove(slackUserId: string): Promise<boolean> {
+    const staff = await this.repository.getStaffMember(slackUserId);
+
+    return Boolean(staff?.canApprove);
+  }
+
   async getFormData(): Promise<VolunteerFormData> {
     if (this.catalog && Date.now() - this.catalog.loadedAt < CATALOG_TTL_MS) {
       return this.catalog.data;

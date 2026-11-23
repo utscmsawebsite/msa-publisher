@@ -152,8 +152,11 @@ like `volunteer_hub_open_failed`. Send me those lines, never a token.
 If you did the smoke test with real details, you are already done with these:
 
 1. `/volunteer-admin` -> **Staff**: add each approver and exec (title, then
-   permissions). Admins (the env list) can do everything; staff are the people
-   who approve hours, manage setup, or sign letters.
+   permissions). Admins (the env list) can open every screen and manage setup,
+   but **approving hours needs a Staff entry with "Can approve hours"**, even for
+   an admin. Add yourself too, or Approve and Disapprove won't work for you (you
+   will see "You don't have permission to approve volunteer hours", and the
+   Pending requests screen shows no buttons). The production staff list starts empty.
 2. **Years**: create the real volunteer year(s).
 3. **Events**: add the events volunteers can pick for "Specific Event".
 4. Tell volunteers to use `/volunteer` in the community workspace.

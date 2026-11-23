@@ -627,6 +627,164 @@ describe("the app's buttons and forms, wired together", () => {
     });
   });
 
+  describe("deciding from a volunteer's request list (admin: Find a volunteer's requests)", () => {
+    const listView = (value = "admin") => ({
+      id: "VREC",
+      hash: "h",
+      blocks: [{ type: "actions", elements: [{ action_id: hubActionIds.back, value }] }],
+      private_metadata: "{}",
+      state: { values: {} },
+    });
+    const addPending = async (slackSubmissionId: string, description: string, date: string, hours: number) => {
+      const prepared = await volunteers.prepareSubmission({
+        slackSubmissionId, volunteerSlackUserId: VOLUNTEER, categoryId: GENERAL.id, eventId: null,
+        description, entries: [{ entryDate: date, hours }],
+      });
+      if (!prepared.ok) throw new Error("setup failed");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return (await volunteers.createSubmission(prepared.prepared)).submission;
+    };
+    const openList = async (userId: string) => {
+      await press(hubActionIds.back, userId, `records:${VOLUNTEER}`);
+
+      return lastView();
+    };
+    const decisionButtons = (view: Update["view"] | undefined) =>
+      blocksOf(view).flatMap((block) => block.elements ?? []).filter((element) => element.action_id === actionIds.approve || element.action_id === actionIds.disapprove);
+    const valueOf = (id: string, version = 0) => `${id}:${version}|records:${VOLUNTEER}`;
+    let first: { id: string; version: number };
+    let second: { id: string; version: number };
+    let third: { id: string; version: number };
+
+    before(async () => {
+      first = await addPending("VREC1", "Records approve me", "2026-11-06", 4);
+      second = await addPending("VREC2", "Records disapprove me", "2026-11-07", 1.5);
+      third = await addPending("VREC3", "Records refusal test", "2026-11-08", 2);
+    });
+
+    it("an approver sees Approve and Disapprove under each pending request, and the Edit buttons stay", async () => {
+      const view = await openList(ADMIN);
+      const pendingNow = (await repository.listSubmissionsForVolunteer(VOLUNTEER, 100)).filter((request) => request.status === "pending");
+
+      assert.equal(view?.title?.text, "Volunteer requests");
+      assert.equal(decisionButtons(view).filter((button) => button.action_id === actionIds.approve).length, pendingNow.length);
+      assert.equal(decisionButtons(view).filter((button) => button.action_id === actionIds.disapprove).length, pendingNow.length);
+      assert.ok(decisionButtons(view).some((button) => button.value === valueOf(first.id, first.version)));
+      assert.ok(blocksOf(view).some((block) => block.accessory?.action_id === actionIds.editRequest));
+      assert.equal(blocksOf(view)[0]?.elements?.[0]?.value, "admin");
+    });
+
+    it("an exec who can look but not approve sees the same list with no decision buttons", async () => {
+      const view = await openList(MANAGER);
+
+      assert.ok(text(view).includes("Records approve me"));
+      assert.deepEqual(decisionButtons(view), []);
+    });
+
+    it("Approve decides it, tells the volunteer, and redraws the same list with a confirmation", async () => {
+      dms.length = 0;
+      await press(actionIds.approve, ADMIN, valueOf(first.id, first.version), listView());
+      const view = lastView();
+      const decided = await repository.getSubmission(first.id);
+
+      assert.equal(decided?.status, "approved");
+      assert.equal(decided?.decidedBySlackUserId, ADMIN);
+      assert.equal(view?.title?.text, "Volunteer requests");
+      assert.ok(text(view).includes("✅ Approved Jane Doe's 4 h."));
+      assert.ok(!decisionButtons(view).some((button) => button.value === valueOf(first.id, first.version)), "its buttons are gone");
+      assert.ok(decisionButtons(view).some((button) => button.value === valueOf(second.id, second.version)), "the others keep theirs");
+      assert.equal(blocksOf(view)[0]?.elements?.[0]?.value, "admin", "Back still leads to the admin home");
+      assert.ok(dms.some((message) => message.channel === VOLUNTEER && message.text.includes("approved")));
+      assert.ok(!dms.some((message) => message.channel === ADMIN), "no extra DM for the approver; the list says it");
+    });
+
+    it("Disapprove replaces the list with a reason form that has Back; Back returns to the list", async () => {
+      await press(actionIds.disapprove, ADMIN, valueOf(second.id, second.version), listView());
+      const form = lastView();
+
+      assert.equal(form?.callback_id, callbackIds.rejectReason);
+      assert.equal(blocksOf(form)[0]?.elements?.[0]?.value, `records:${VOLUNTEER}`);
+      assert.deepEqual(JSON.parse(form?.private_metadata ?? "{}"), { submissionId: second.id, version: second.version, returnTo: `records:${VOLUNTEER}` });
+      assert.equal((await repository.getSubmission(second.id))?.status, "pending", "nothing is decided until a reason is submitted");
+
+      await press(hubActionIds.back, ADMIN, `records:${VOLUNTEER}`);
+
+      assert.equal(lastView()?.title?.text, "Volunteer requests");
+    });
+
+    it("a reason is required, then it disapproves, tells the volunteer why, and returns to the list", async () => {
+      await press(actionIds.disapprove, ADMIN, valueOf(second.id, second.version), listView());
+      const form = lastView();
+      let acked: { view?: Update["view"]; errors?: Record<string, string> } = {};
+      const submit = (reason: string) =>
+        handlers.views.get(callbackIds.rejectReason)?.({
+          ack: async (response?: typeof acked) => {
+            acked = response ?? {};
+          },
+          body: { user: { id: ADMIN } },
+          client,
+          view: { id: "VREASON2", private_metadata: form?.private_metadata, state: { values: { [blockIds.reason]: { reason: { value: reason } } } } },
+        });
+
+      await submit("   ");
+      assert.ok(acked.errors && blockIds.reason in acked.errors);
+      assert.equal((await repository.getSubmission(second.id))?.status, "pending");
+
+      dms.length = 0;
+      await submit("Wrong date, please fix");
+      const decided = await repository.getSubmission(second.id);
+
+      assert.ok(text(acked.view).includes("Saving…"));
+      assert.deepEqual([decided?.status, decided?.decisionNote, decided?.decidedBySlackUserId], ["rejected", "Wrong date, please fix", ADMIN]);
+      assert.equal(lastView()?.title?.text, "Volunteer requests");
+      assert.ok(text(lastView()).includes("Disapproved Jane Doe's 1.5 h."));
+      assert.ok(text(lastView()).includes("Wrong date, please fix"), "the card now shows the reason");
+      assert.equal(blocksOf(lastView())[0]?.elements?.[0]?.value, "admin");
+      assert.ok(dms.some((message) => message.channel === VOLUNTEER && message.text.includes("Wrong date, please fix")));
+    });
+
+    it("someone without the approve permission is refused even with a valid button, and nothing changes", async () => {
+      await press(actionIds.approve, MANAGER, valueOf(third.id, third.version), listView());
+
+      assert.ok(text(lastView()).includes("⚠️ You don't have permission to approve volunteer hours."));
+      assert.equal((await repository.getSubmission(third.id))?.status, "pending");
+
+      await press(actionIds.disapprove, MANAGER, valueOf(third.id, third.version), listView());
+      const form = lastView();
+      await handlers.views.get(callbackIds.rejectReason)?.({
+        ack: async () => undefined,
+        body: { user: { id: MANAGER } },
+        client,
+        view: { id: "VREASON3", private_metadata: form?.private_metadata, state: { values: { [blockIds.reason]: { reason: { value: "No" } } } } },
+      });
+
+      assert.ok(text(lastView()).includes("⚠️ You don't have permission to approve volunteer hours."));
+      assert.equal((await repository.getSubmission(third.id))?.status, "pending");
+    });
+
+    it("a button for a request that was edited since it was shown is refused, with the list refreshed", async () => {
+      await press(actionIds.approve, ADMIN, valueOf(third.id, third.version + 1), listView());
+
+      assert.ok(text(lastView()).includes("⚠️ That request was just edited"));
+      assert.equal((await repository.getSubmission(third.id))?.status, "pending");
+    });
+
+    it("a request someone else already decided says so, and shows who", async () => {
+      await volunteers.decide({ submissionId: third.id, decidedBySlackUserId: APPROVER, decision: "approved", note: null });
+      await press(actionIds.approve, ADMIN, valueOf(third.id, third.version), listView());
+
+      assert.ok(text(lastView()).includes(`⚠️ That request was already approved by <@${APPROVER}>`));
+      assert.equal((await repository.getSubmission(third.id))?.decidedBySlackUserId, APPROVER);
+      assert.ok(!decisionButtons(lastView()).some((button) => button.value === valueOf(third.id, third.version)));
+    });
+
+    it("the volunteer's own My hours screen never has decision buttons", async () => {
+      await press(hubActionIds.myHours, VOLUNTEER, "member");
+
+      assert.deepEqual(decisionButtons(lastView()), []);
+    });
+  });
+
   it("every first screen of a form opened from a home has a Back button to that home", async () => {
     const cases: Array<[string, string, string]> = [
       [hubActionIds.hours, ADMIN, "member"],

@@ -752,20 +752,30 @@ export function buildHoursFormView(
  * version of it the card showed. If the request is edited afterwards, a click on
  * the old card no longer matches and is refused.
  */
-export function decisionValue(submission: VolunteerSubmission): string {
-  return `${submission.id}:${submission.version}`;
+export function decisionValue(
+  submission: VolunteerSubmission,
+  /** The screen to redraw after a decision made inside a window (not a channel card). */
+  returnTo: string | null = null,
+): string {
+  const core = `${submission.id}:${submission.version}`;
+
+  return returnTo ? `${core}|${returnTo}` : core;
 }
 
 export function parseDecisionValue(value: string): {
   submissionId: string;
   version: number | null;
+  returnTo: string | null;
 } {
-  const separator = value.lastIndexOf(":");
-  const version = separator >= 0 ? Number(value.slice(separator + 1)) : NaN;
+  const bar = value.indexOf("|");
+  const core = bar < 0 ? value : value.slice(0, bar);
+  const returnTo = bar < 0 ? null : value.slice(bar + 1) || null;
+  const separator = core.lastIndexOf(":");
+  const version = separator >= 0 ? Number(core.slice(separator + 1)) : NaN;
 
   return Number.isInteger(version) && version >= 0
-    ? { submissionId: value.slice(0, separator), version }
-    : { submissionId: value, version: null };
+    ? { submissionId: core.slice(0, separator), version, returnTo }
+    : { submissionId: core, version: null, returnTo };
 }
 
 export function buildRejectReasonView(
@@ -773,6 +783,8 @@ export function buildRejectReasonView(
   version: number | null = null,
   /** Set when opened from the approvers' queue: the home that queue belongs to. */
   queueHome: "exec" | "admin" | null = null,
+  /** Set when opened from a volunteer's request list: the screen to return to. */
+  returnTo: string | null = null,
 ): ModalView {
   return {
     type: "modal",
@@ -781,6 +793,7 @@ export function buildRejectReasonView(
       submissionId,
       version,
       ...(queueHome ? { queue: queueHome } : {}),
+      ...(returnTo ? { returnTo } : {}),
     }),
     title: plain("Disapprove hours"),
     submit: plain("Disapprove"),

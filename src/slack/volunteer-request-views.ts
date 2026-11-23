@@ -2,6 +2,7 @@ import type { VolunteerSubmission } from "../domain/volunteer.js";
 import { hubBackBlock, parseHubBack, type HubBack } from "./volunteer-hub-views.js";
 import {
   actionIds,
+  decisionValue,
   escapeSlackText,
   formatDate,
   formatHours,
@@ -94,6 +95,11 @@ export interface RequestsScreen {
   editBack: HubBack;
   emptyText: string;
   notice?: string | null;
+  /**
+   * Set for an approver looking at someone's requests: each pending one gets
+   * Approve and Disapprove buttons, and a decision redraws `returnTo`.
+   */
+  decide?: { returnTo: string };
 }
 
 export function buildRequestsView(screen: RequestsScreen): ModalView {
@@ -140,6 +146,30 @@ export function buildRequestsView(screen: RequestsScreen): ModalView {
             },
           }),
     });
+
+    if (screen.decide && request.status === "pending") {
+      const value = decisionValue(request, screen.decide.returnTo);
+
+      blocks.push({
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            action_id: actionIds.approve,
+            style: "primary",
+            text: { type: "plain_text", text: "Approve" },
+            value,
+          },
+          {
+            type: "button",
+            action_id: actionIds.disapprove,
+            style: "danger",
+            text: { type: "plain_text", text: "Disapprove" },
+            value,
+          },
+        ],
+      });
+    }
   }
 
   if (screen.requests.length > shown.length) {
