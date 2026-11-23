@@ -19,7 +19,7 @@ import { actionIds, blockIds, callbackIds } from "./volunteer-views.js";
  */
 type Handler = (args: Record<string, unknown>) => Promise<unknown>;
 
-const YEAR = { id: "11111111-1111-4111-8111-111111111111", label: "2026/27 Volunteer Year", startDate: "2026-09-01", endDate: "2027-03-15" };
+const YEAR = { id: "11111111-1111-4111-8111-111111111111", label: "2026/27 Volunteer Year", startDate: "2026-09-01", endDate: "2027-03-15", isDefault: false };
 const GENERAL = { id: "22222222-2222-4222-8222-222222222222", name: "General", requiresEvent: false, isActive: true, sortOrder: 1 };
 const ADMIN = "UADMIN0001";
 const VOLUNTEER = "UVOL000001";

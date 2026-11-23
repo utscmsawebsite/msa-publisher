@@ -7,6 +7,7 @@ import {
   type VolunteerYear,
   type YearStats,
 } from "../domain/volunteer.js";
+import { logError } from "../logging/application-logger.js";
 import type { VolunteerRepository } from "../repositories/volunteer.repository.js";
 import { isValidIsoDate } from "./volunteer.service.js";
 
@@ -344,6 +345,7 @@ export class VolunteerAdminService {
     rawLabel: string,
     startDate: string,
     endDate: string,
+    makeDefault = false,
   ): Promise<AdminResult> {
     if (!(await this.canManage(actorSlackUserId))) {
       return fail("You don't have permission to manage volunteer settings.");
@@ -379,10 +381,35 @@ export class VolunteerAdminService {
       );
     }
 
-    await this.repository.createYear(label, startDate, endDate);
+    const created = await this.repository.createYear(label, startDate, endDate);
+    const defaultNote = makeDefault
+      ? await this.applyDefault(created.id, true)
+      : "";
     this.onCatalogChanged();
 
-    return succeed(`Added *${label}* (${startDate} to ${endDate}).`);
+    return succeed(`Added *${label}* (${startDate} to ${endDate}).${defaultNote}`);
+  }
+
+  /**
+   * Sets or clears the default year after the year itself was saved. A failure
+   * here never undoes the save: the message just says the default didn't change.
+   */
+  private async applyDefault(yearId: string, makeDefault: boolean): Promise<string> {
+    try {
+      const found = await this.repository.setDefaultYear(makeDefault ? yearId : null);
+
+      if (!found) {
+        return " It couldn't be set as the default because it no longer exists.";
+      }
+
+      return makeDefault
+        ? " It is now the default year."
+        : " It is no longer the default year.";
+    } catch (error) {
+      logError("volunteer_default_year_failed", error, { yearId });
+
+      return " The default year didn't change. Open Edit year to try again.";
+    }
   }
 
   /**
@@ -396,6 +423,7 @@ export class VolunteerAdminService {
     rawLabel: string,
     startDate: string,
     endDate: string,
+    makeDefault?: boolean,
   ): Promise<AdminResult> {
     if (!(await this.canManage(actorSlackUserId))) {
       return fail("You don't have permission to manage volunteer settings.");
@@ -416,6 +444,9 @@ export class VolunteerAdminService {
     }
 
     const years = await this.repository.listYears();
+    const wasDefault = years.some(
+      (year) => year.id === yearId && year.isDefault,
+    );
     const others = years.filter((year) => year.id !== yearId);
 
     if (others.some((year) => year.label.toLowerCase() === label.toLowerCase())) {
@@ -451,9 +482,13 @@ export class VolunteerAdminService {
       );
     }
 
+    const defaultNote =
+      makeDefault !== undefined && makeDefault !== wasDefault
+        ? await this.applyDefault(yearId, makeDefault)
+        : "";
     this.onCatalogChanged();
 
-    return succeed(`Updated *${label}* (${startDate} to ${endDate}).`);
+    return succeed(`Updated *${label}* (${startDate} to ${endDate}).${defaultNote}`);
   }
 
   /** Only a year with nothing logged against it and no report can be deleted. */

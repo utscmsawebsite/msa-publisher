@@ -49,7 +49,13 @@ describe("NeonVolunteerRepository against a real Postgres", {
           "utf8",
         ),
       );
-      lastStep = "(migration applied)";
+      await pool.query(
+        readFileSync(
+          new URL("../../migrations/005_add_volunteer_default_year.sql", import.meta.url),
+          "utf8",
+        ),
+      );
+      lastStep = "(migrations applied)";
 
       class LazyQuery implements PromiseLike<unknown[]> {
         constructor(private readonly run: (client?: PoolClient) => Promise<unknown[]>) {}
@@ -544,7 +550,7 @@ describe("NeonVolunteerRepository against a real Postgres", {
       const movedYear = await repo.updateYear(yearMgmt.id, "Mgmt Year renamed", "2040-09-02", "2041-03-14");
       assert.deepEqual(movedYear, {
         status: "updated",
-        year: { id: yearMgmt.id, label: "Mgmt Year renamed", startDate: "2040-09-02", endDate: "2041-03-14" },
+        year: { id: yearMgmt.id, label: "Mgmt Year renamed", startDate: "2040-09-02", endDate: "2041-03-14", isDefault: false },
       });
       assert.equal((await repo.updateYear(randomUUID(), "x", "2030-01-01", "2030-02-01")).status, "not_found");
       await rejects("a year label that already exists, ignoring case", () =>
@@ -603,6 +609,26 @@ describe("NeonVolunteerRepository against a real Postgres", {
       await repo.createExport({ generatedBySlackUserId: "UAPPROVER", yearId: reportYear.id, kind: "combined", filters: { yearId: reportYear.id, studentType: "all", onlyUnsent: false, sort: "name", volunteerSlackUserIds: null }, entryIds: [], totalHours: 0 });
       assert.equal(await repo.deleteYear(reportYear.id), "in_use");
       step("a year a report was generated for can't be deleted either");
+
+      // --- the default year ---
+      const defaults = async () => (await repo.listYears()).filter((y) => y.isDefault).map((y) => y.id);
+      assert.deepEqual(await defaults(), [], "the migration must not choose a default");
+      assert.equal(await repo.setDefaultYear(randomUUID()), false);
+      assert.deepEqual(await defaults(), [], "an unknown year changes nothing");
+      assert.equal(await repo.setDefaultYear(yearId), true);
+      assert.deepEqual(await defaults(), [yearId]);
+      assert.equal(await repo.setDefaultYear(yearMgmt.id), true);
+      assert.deepEqual(await defaults(), [yearMgmt.id], "a new default replaces the old one");
+      assert.equal(await repo.setDefaultYear(randomUUID()), false);
+      assert.deepEqual(await defaults(), [yearMgmt.id], "a stale id must not wipe the current default");
+      await rejects("two default years at once", () => pool.query("UPDATE volunteer_years SET is_default = true"));
+      assert.deepEqual(await defaults(), [yearMgmt.id], "the database itself refuses a second default");
+      const renamedDefault = await repo.updateYear(yearMgmt.id, "Mgmt default renamed", "2040-10-01", "2041-03-14");
+      assert.equal(renamedDefault.status === "updated" && renamedDefault.year.isDefault, true, "editing a year keeps its default flag");
+      assert.equal((await repo.createYear("Mgmt Not Default", "2033-09-01", "2034-03-15")).isDefault, false);
+      assert.equal(await repo.setDefaultYear(null), true);
+      assert.deepEqual(await defaults(), []);
+      step("one default year at most; replaced, kept on edit, cleared, and enforced by the database");
 
       const iftar = await repo.createEvent("Fall Iftar", "2027-11-20", "UAPPROVER");
       const renamed = await repo.updateEvent(iftar.id, "Community Iftar", null);

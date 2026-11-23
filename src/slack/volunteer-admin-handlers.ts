@@ -107,7 +107,12 @@ export async function renderAdminScreen(
     case "add": {
       // add:year, add:staff, add:category, add:event[:year:<id>]
       if (second === "year") {
-        return buildYearFormView(null, undefined, "years");
+        return buildYearFormView(
+          null,
+          undefined,
+          "years",
+          data.years.some((candidate) => candidate.isDefault),
+        );
       }
 
       if (second === "staff") {
@@ -440,9 +445,10 @@ export function registerVolunteerAdminHandlers(
           return invalid("Choose an end date.", adminBlockIds.end);
         }
 
+        const makeDefault = flags.includes("default");
         const result = meta.id
-          ? await admin.updateYear(actor, meta.id, text(adminBlockIds.name), start, end)
-          : await admin.addYear(actor, text(adminBlockIds.name), start, end);
+          ? await admin.updateYear(actor, meta.id, text(adminBlockIds.name), start, end, makeDefault)
+          : await admin.addYear(actor, text(adminBlockIds.name), start, end, makeDefault);
 
         return done(
           result,

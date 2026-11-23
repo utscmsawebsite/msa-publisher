@@ -18,7 +18,7 @@ const adminContext = {
     events: [],
     staff: [],
     years: [
-      { id: "Y1", label: "2026/27 Volunteer Year", startDate: "2026-09-01", endDate: "2027-03-15" },
+      { id: "Y1", label: "2026/27 Volunteer Year", startDate: "2026-09-01", endDate: "2027-03-15", isDefault: false },
     ],
     yearStats: [],
   },

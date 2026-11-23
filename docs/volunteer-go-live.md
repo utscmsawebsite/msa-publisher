@@ -178,6 +178,30 @@ If you did the smoke test with real details, you are already done with these:
   from `docs/volunteer-slack-app.dev.manifest.yml` in a throwaway workspace and use
   `npm run dev:volunteers` with that app's own tokens and the test branch.
 
+## Later updates (after go-live)
+
+### Migration 005: the default year
+
+Adds an optional **default year** (a checkbox on **New year** and **Edit year**).
+Report forms open on it, so execs don't have to look for the year. Every year is
+still in the dropdown.
+
+It only **adds** one column and one index to `volunteer_years`; nothing existing
+changes, and no default is set until an admin ticks the box (until then forms open
+on the year containing today's date, as before).
+
+**Order matters: apply the migration to the real database before deploying the
+code.** The new code reads the new column, so deploying first would break the
+volunteer commands until the migration runs. Apply it the same way as step 1,
+using `migrations/005_add_volunteer_default_year.sql`:
+
+```bash
+url=$(grep '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | tr -d "\"'"); case "$url" in postgres*) psql "$url" -v ON_ERROR_STOP=1 -f migrations/005_add_volunteer_default_year.sql;; *) echo "DATABASE_URL in .env doesn't look like a postgres URL";; esac
+```
+
+It is safe to run twice (`IF NOT EXISTS`). To undo it, drop the index and the
+column; nothing else depends on them.
+
 ## Good to know
 
 - **Slow first click.** After the function sits idle, the first command can take a

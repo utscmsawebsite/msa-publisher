@@ -11,6 +11,7 @@ function setup() {
         label: "2026/27 Volunteer Year",
         startDate: "2026-09-01",
         endDate: "2027-08-31",
+        isDefault: false,
       },
     ],
     categories: [
@@ -479,5 +480,98 @@ describe("editing an event", () => {
       /no longer exists/,
     );
     assert.ok(changes() >= 3);
+  });
+});
+
+describe("the default year", () => {
+  const YEAR_ID = "11111111-1111-4111-8111-111111111111";
+  const defaultIds = async (repository: InMemoryVolunteerRepository) =>
+    (await repository.listYears()).filter((y) => y.isDefault).map((y) => y.label);
+
+  it("is only set when asked: adding a year leaves the default alone by default", async () => {
+    const { repository, admin } = setup();
+    const added = await admin.addYear("UEXEC0001", "2027/28", "2027-09-01", "2028-08-31");
+
+    assert.equal(added.ok, true);
+    assert.doesNotMatch(added.message, /default/i);
+    assert.deepEqual(await defaultIds(repository), []);
+  });
+
+  it("makes a new year the default when ticked, and says so", async () => {
+    const { repository, admin } = setup();
+    const added = await admin.addYear("UEXEC0001", "2027/28", "2027-09-01", "2028-08-31", true);
+
+    assert.equal(added.ok, true);
+    assert.match(added.message, /now the default year/);
+    assert.deepEqual(await defaultIds(repository), ["2027/28"]);
+  });
+
+  it("only ever has one default: a new default replaces the old one", async () => {
+    const { repository, admin } = setup();
+    await admin.updateYear("UEXEC0001", YEAR_ID, "2026/27 Volunteer Year", "2026-09-01", "2027-08-31", true);
+    assert.deepEqual(await defaultIds(repository), ["2026/27 Volunteer Year"]);
+
+    await admin.addYear("UEXEC0001", "2027/28", "2027-09-01", "2028-08-31", true);
+    assert.deepEqual(await defaultIds(repository), ["2027/28"]);
+  });
+
+  it("can be set and cleared from Edit year, and an unchanged tick says nothing", async () => {
+    const { repository, admin } = setup();
+    const set = await admin.updateYear("UEXEC0001", YEAR_ID, "2026/27 Volunteer Year", "2026-09-01", "2027-08-31", true);
+    const same = await admin.updateYear("UEXEC0001", YEAR_ID, "2026/27 Volunteer Year", "2026-09-01", "2027-08-31", true);
+    const cleared = await admin.updateYear("UEXEC0001", YEAR_ID, "2026/27 Volunteer Year", "2026-09-01", "2027-08-31", false);
+
+    assert.match(set.message, /now the default year/);
+    assert.doesNotMatch(same.message, /default/i);
+    assert.match(cleared.message, /no longer the default year/);
+    assert.deepEqual(await defaultIds(repository), []);
+  });
+
+  it("keeps the default when an edit doesn't mention it", async () => {
+    const { repository, admin } = setup();
+    await admin.updateYear("UEXEC0001", YEAR_ID, "2026/27 Volunteer Year", "2026-09-01", "2027-08-31", true);
+    await admin.updateYear("UEXEC0001", YEAR_ID, "Renamed", "2026-09-01", "2027-08-31");
+
+    assert.deepEqual(await defaultIds(repository), ["Renamed"]);
+  });
+
+  it("doesn't change the default when the year edit itself is refused", async () => {
+    const { repository, admin } = setup();
+    await admin.addYear("UEXEC0001", "2027/28", "2027-09-01", "2028-08-31", true);
+    const refused = await admin.updateYear("UEXEC0001", YEAR_ID, "2027/28", "2026-09-01", "2027-08-31", true);
+
+    assert.equal(refused.ok, false);
+    assert.deepEqual(await defaultIds(repository), ["2027/28"]);
+  });
+
+  it("is for execs and admins only", async () => {
+    const { repository, admin } = setup();
+    const result = await admin.updateYear("UNOBODY01", YEAR_ID, "2026/27 Volunteer Year", "2026-09-01", "2027-08-31", true);
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(await defaultIds(repository), []);
+  });
+
+  it("falls back cleanly when the default year is deleted", async () => {
+    const { repository, admin } = setup();
+    await admin.addYear("UEXEC0001", "2027/28", "2027-09-01", "2028-08-31", true);
+    const spare = (await repository.listYears()).find((y) => y.label === "2027/28")!;
+    const deleted = await admin.deleteYear("UEXEC0001", spare.id);
+
+    assert.equal(deleted.ok, true);
+    assert.deepEqual(await defaultIds(repository), []);
+  });
+
+  it("still saves the year, and says so, if setting the default fails", async () => {
+    const { repository, admin } = setup();
+    repository.setDefaultYear = async () => {
+      throw new Error("database hiccup");
+    };
+    const added = await admin.addYear("UEXEC0001", "2027/28", "2027-09-01", "2028-08-31", true);
+
+    assert.equal(added.ok, true);
+    assert.match(added.message, /Added \*2027\/28\*/);
+    assert.match(added.message, /default year didn't change/);
+    assert.ok((await repository.listYears()).some((y) => y.label === "2027/28"));
   });
 });

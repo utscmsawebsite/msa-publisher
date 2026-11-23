@@ -160,6 +160,12 @@ export interface VolunteerRepository {
   ): Promise<UpdateYearResult>;
   /** Deletes a year only when nothing is logged against it and no report used it. */
   deleteYear(id: string): Promise<DeleteYearResult>;
+  /**
+   * Makes one year the default (clearing any other), or clears the default
+   * when `id` is null. Returns false, changing nothing, if the year doesn't
+   * exist.
+   */
+  setDefaultYear(id: string | null): Promise<boolean>;
   updateEvent(
     id: string,
     name: string,

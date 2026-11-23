@@ -689,7 +689,13 @@ export class InMemoryVolunteerRepository implements VolunteerRepository {
     startDate: string,
     endDate: string,
   ): Promise<VolunteerYear> {
-    const year: VolunteerYear = { id: randomUUID(), label, startDate, endDate };
+    const year: VolunteerYear = {
+      id: randomUUID(),
+      label,
+      startDate,
+      endDate,
+      isDefault: false,
+    };
     this.years.push(year);
 
     return year;
@@ -796,6 +802,18 @@ export class InMemoryVolunteerRepository implements VolunteerRepository {
     this.years.splice(index, 1);
 
     return "deleted";
+  }
+
+  async setDefaultYear(id: string | null): Promise<boolean> {
+    if (id !== null && !this.years.some((year) => year.id === id)) {
+      return false;
+    }
+
+    this.years.forEach((year, index) => {
+      this.years[index] = { ...year, isDefault: year.id === id };
+    });
+
+    return true;
   }
 
   async updateEvent(

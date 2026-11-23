@@ -3,7 +3,7 @@ import type {
   ReportSort,
   StudentTypeFilter,
 } from "../domain/volunteer-report.js";
-import type { VolunteerYear } from "../domain/volunteer.js";
+import { pickDefaultYear, type VolunteerYear } from "../domain/volunteer.js";
 import {
   logError,
   logInfo,
@@ -68,8 +68,7 @@ export function buildReportFormView(
     .map((year) => option(year.label.slice(0, 75), year.id));
   const currentYear =
     years.find((year) => year.id === preselectedYearId) ??
-    years.find((year) => today >= year.startDate && today <= year.endDate) ??
-    years.at(-1);
+    pickDefaultYear(years, today);
   const initialYear = yearOptions.find(
     (candidate) => candidate.value === currentYear?.id,
   );

@@ -88,6 +88,7 @@ const formData = {
     label: `${LONG} year ${index}`,
     startDate: "2026-09-01",
     endDate: "2027-08-31",
+    isDefault: false,
   })),
 };
 

@@ -34,7 +34,7 @@ const profile = { slackUserId: "U1", studentType: "uoft", firstName: "A", lastNa
 const formData = {
   categories: [{ id: "c1", name: "General", requiresEvent: false, isActive: true, sortOrder: 1 }],
   events: [{ id: "e1", name: "Iftar", eventDate: "2026-11-20", isActive: true }],
-  years: [{ id: "y1", label: "2026/27", startDate: "2026-09-01", endDate: "2027-03-15" }],
+  years: [{ id: "y1", label: "2026/27", startDate: "2026-09-01", endDate: "2027-03-15", isDefault: false }],
 };
 const submission = {
   id: "s1", slackSubmissionId: "V1", volunteerSlackUserId: "U1", volunteerName: "A B", submittedBySlackUserId: "U1",

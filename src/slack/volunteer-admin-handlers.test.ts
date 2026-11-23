@@ -34,7 +34,7 @@ interface Harness {
 
 function setup(): Harness {
   const repository = new InMemoryVolunteerRepository({
-    years: [{ id: YEAR_ID, label: "2026/27 Volunteer Year", startDate: "2026-09-01", endDate: "2027-03-15" }],
+    years: [{ id: YEAR_ID, label: "2026/27 Volunteer Year", startDate: "2026-09-01", endDate: "2027-03-15", isDefault: false }],
     categories: [{ id: CATEGORY_ID, name: "General", requiresEvent: false, isActive: true, sortOrder: 1 }],
     staff: [
       { slackUserId: EXEC, displayName: "Exec", title: null, canApprove: true, canManage: false, isPrimary: false },
@@ -296,6 +296,58 @@ describe("saving a form", () => {
     assert.deepEqual(Object.keys(noEnd.errors ?? {}), [adminBlockIds.end]);
     assert.equal((await h.repository.listYears()).length, 1);
     assert.deepEqual(h.ops, []);
+  });
+
+  it("ticking 'Use as the default year' sets it, and the list and summary show it", async () => {
+    const result = await submit(
+      h,
+      { kind: "year", back: "years" },
+      {
+        ...typed(adminBlockIds.name, "2027/28 Volunteer Year"),
+        ...dated(adminBlockIds.start, "2027-09-01"),
+        ...dated(adminBlockIds.end, "2028-03-15"),
+        [adminBlockIds.flags]: { flags: { selected_options: [{ value: "default" }] } },
+      },
+    );
+    const years = await h.repository.listYears();
+
+    assert.ok(text(result.view).includes("It is now the default year."));
+    assert.ok(text(result.view).includes("★ Default"));
+    assert.deepEqual(years.filter((y) => y.isDefault).map((y) => y.label), ["2027/28 Volunteer Year"]);
+  });
+
+  it("leaves the default alone when the box is not ticked on a new year", async () => {
+    await h.repository.setDefaultYear(YEAR_ID);
+    await submit(
+      h,
+      { kind: "year", back: "years" },
+      {
+        ...typed(adminBlockIds.name, "2027/28 Volunteer Year"),
+        ...dated(adminBlockIds.start, "2027-09-01"),
+        ...dated(adminBlockIds.end, "2028-03-15"),
+      },
+    );
+
+    assert.deepEqual(
+      (await h.repository.listYears()).filter((y) => y.isDefault).map((y) => y.id),
+      [YEAR_ID],
+    );
+  });
+
+  it("unticking it on the default year clears the default", async () => {
+    await h.repository.setDefaultYear(YEAR_ID);
+    await submit(
+      h,
+      { kind: "year", id: YEAR_ID, back: `year:${YEAR_ID}` },
+      {
+        ...typed(adminBlockIds.name, "2026/27 Volunteer Year"),
+        ...dated(adminBlockIds.start, "2026-09-01"),
+        ...dated(adminBlockIds.end, "2027-03-15"),
+        [adminBlockIds.flags]: { flags: { selected_options: [] } },
+      },
+    );
+
+    assert.deepEqual((await h.repository.listYears()).filter((y) => y.isDefault), []);
   });
 
   it("edits a year and returns to its page; refuses dates that would strand hours", async () => {

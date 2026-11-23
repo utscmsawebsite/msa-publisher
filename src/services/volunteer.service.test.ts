@@ -23,6 +23,7 @@ function createService() {
         label: "2026/27 Volunteer Year",
         startDate: "2026-09-01",
         endDate: "2027-08-31",
+        isDefault: false,
       },
     ],
     categories: [

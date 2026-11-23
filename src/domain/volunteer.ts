@@ -48,6 +48,25 @@ export interface VolunteerYear {
   label: string;
   startDate: string;
   endDate: string;
+  /** The year forms open on. At most one year is the default. */
+  isDefault: boolean;
+}
+
+/**
+ * The year a form should start on: the one an admin marked as the default,
+ * else the one that contains today, else the latest. Years are expected in
+ * date order (oldest first). Returns null only when there are no years.
+ */
+export function pickDefaultYear(
+  years: readonly VolunteerYear[],
+  today: string,
+): VolunteerYear | null {
+  return (
+    years.find((year) => year.isDefault) ??
+    years.find((year) => today >= year.startDate && today <= year.endDate) ??
+    years.at(-1) ??
+    null
+  );
 }
 
 /** What has been logged against one volunteer year. */

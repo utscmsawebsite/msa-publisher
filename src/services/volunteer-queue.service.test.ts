@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { InMemoryVolunteerRepository } from "../repositories/in-memory-volunteer.repository.js";
 import { PENDING_QUEUE_PAGE, VolunteerService } from "./volunteer.service.js";
 
-const YEAR = { id: "11111111-1111-4111-8111-111111111111", label: "2026/27", startDate: "2026-09-01", endDate: "2027-03-15" };
+const YEAR = { id: "11111111-1111-4111-8111-111111111111", label: "2026/27", startDate: "2026-09-01", endDate: "2027-03-15", isDefault: false };
 const GENERAL = { id: "22222222-2222-4222-8222-222222222222", name: "General", requiresEvent: false, isActive: true, sortOrder: 1 };
 
 function setup() {

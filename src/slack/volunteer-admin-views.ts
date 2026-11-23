@@ -195,6 +195,17 @@ const timingLabels: Record<YearTiming, string> = {
   upcoming: "Upcoming",
 };
 
+/** "2026/27  ·  ● Current  ·  ★ Default" (the default tag only on the default year). */
+function yearHeading(year: VolunteerYear, today: string): string {
+  const tags = [timingLabels[yearTiming(year, today)]];
+
+  if (year.isDefault) {
+    tags.push("★ Default");
+  }
+
+  return `*${escapeSlackText(truncate(year.label, 60))}*  ·  ${tags.join("  ·  ")}`;
+}
+
 export function statsLine(stats: YearStats | undefined): string {
   if (!stats) {
     return "Nothing logged yet.";
@@ -269,12 +280,17 @@ function activeEventsOf(context: AdminViewContext): VolunteerEvent[] {
 /** The one line under "Setup" on the admin home screen. */
 export function setupSummary(context: AdminViewContext): string {
   const { data, today } = context;
+  const defaultYear = data.years.find((year) => year.isDefault);
   const current = data.years.find((year) => yearTiming(year, today) === "current");
   const count = (n: number, one: string, many: string) =>
     `${n} ${n === 1 ? one : many}`;
 
   return [
-    current ? `Current year: ${escapeSlackText(current.label)}` : "No current year",
+    defaultYear
+      ? `Default year: ${escapeSlackText(defaultYear.label)}`
+      : current
+        ? `Current year: ${escapeSlackText(current.label)}`
+        : "No current year",
     count(data.staff.length, "staff member", "staff"),
     count(data.categories.length, "category", "categories"),
     count(data.events.length, "event", "events"),
@@ -304,7 +320,7 @@ export function buildYearsView(
       ? [section("No volunteer years yet. Add one so volunteers can log hours.")]
       : shown.map((year) =>
           rowWithButton(
-            `*${escapeSlackText(truncate(year.label, 60))}*  ·  ${timingLabels[yearTiming(year, today)]}\n${year.startDate} to ${year.endDate}\n${statsLine(statsFor(data, year.id))}`,
+            `${yearHeading(year, today)}\n${year.startDate} to ${year.endDate}\n${statsLine(statsFor(data, year.id))}`,
             "Open",
             `year:${year.id}`,
           ),
@@ -326,7 +342,7 @@ export function buildYearView(
     backBlock("years", "← All years"),
     ...noticeBlocks(notice),
     section(
-      `*${escapeSlackText(truncate(year.label, 60))}*  ·  ${timingLabels[yearTiming(year, today)]}\n${year.startDate} to ${year.endDate}`,
+      `${yearHeading(year, today)}\n${year.startDate} to ${year.endDate}`,
     ),
     section(`*Logged hours*\n${statsLine(statsFor(data, year.id))}`),
     {
@@ -444,10 +460,33 @@ function dangerBlock(
   };
 }
 
+const defaultYearOption = {
+  text: plain("Use as the default year"),
+  description: plain("Reports open on this year first. You can still pick any year."),
+  value: "default",
+};
+
+function defaultYearInput(checked: boolean): Block {
+  return {
+    type: "input",
+    block_id: adminBlockIds.flags,
+    optional: true,
+    label: plain("Default year"),
+    element: {
+      type: "checkboxes",
+      action_id: "flags",
+      options: [defaultYearOption],
+      ...(checked ? { initial_options: [defaultYearOption] } : {}),
+    },
+  };
+}
+
 export function buildYearFormView(
   year: VolunteerYear | null,
   stats: YearStats | undefined,
   back: string,
+  /** Whether some year is already the default (a first year is pre-ticked). */
+  hasDefault = true,
 ): ModalView {
   const metadata: FormMetadata = {
     kind: "year",
@@ -463,6 +502,7 @@ export function buildYearFormView(
     }),
     dateInput(adminBlockIds.start, "Start date", year?.startDate ?? null),
     dateInput(adminBlockIds.end, "End date", year?.endDate ?? null),
+    defaultYearInput(year ? year.isDefault : !hasDefault),
     ...(year
       ? [
           note(

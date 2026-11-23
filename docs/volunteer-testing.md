@@ -214,6 +214,8 @@ exists.
 | 1.3 | **Edit** yourself, clear the title -> **Save**; edit again and put it back | The title is cleared, then restored. |
 | 1.4 | **← Back** -> **Years** | One row per year: dates, ● Current / Past / Upcoming, and totals ("N volunteers · X h approved · Y h pending · Z h sent to CCR"). **+ New year** on top. |
 | 1.5 | **+ New year**: `2027/28 Volunteer Year`, `2027-09-01` to `2028-03-15` -> **Save** | Back on the Years list with "✅ Added ...". |
+| 1.5b | **Edit year** on a year, tick **Use as the default year** -> **Save** | The message ends "It is now the default year." The Years list and the year's page show **★ Default** on that year only, and the admin home summary says "Default year: ...". Ticking it on another year moves the tag; unticking it on the default year clears it. |
+| 1.5c | Open **CCR report** or **Volunteer letters** from the home screen | The **Volunteer year** dropdown starts on the default year (the year containing today if none is set) and still lists every year. |
 | 1.6 | **+ New year** again with the same label; then with dates that overlap another year | Red errors under the right field each time; nothing saved. |
 | 1.7 | **Open** the current year (2026/27) | Its page: dates, totals, **Edit year**, **Generate a report**, and the events dated inside it, with **+ Add event**. |
 | 1.8 | **+ Add event** -> name `Test Iftar` | The date is already filled in (inside the year). **Save** returns to the year page with the event listed. |

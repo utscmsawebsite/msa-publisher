@@ -32,7 +32,7 @@ const formData = {
   ],
   events: [],
   years: [
-    { id: "y1", label: "2026/27", startDate: "2026-09-01", endDate: "2027-08-31" },
+    { id: "y1", label: "2026/27", startDate: "2026-09-01", endDate: "2027-08-31", isDefault: false },
   ],
 };
 

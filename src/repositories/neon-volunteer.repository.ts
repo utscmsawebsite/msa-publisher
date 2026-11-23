@@ -57,6 +57,7 @@ function mapYear(row: DatabaseRow): VolunteerYear {
     label: String(row.label),
     startDate: String(row.startDate),
     endDate: String(row.endDate),
+    isDefault: Boolean(row.isDefault),
   };
 }
 
@@ -341,7 +342,8 @@ export class NeonVolunteerRepository implements VolunteerRepository {
         id,
         label,
         start_date::text AS "startDate",
-        end_date::text AS "endDate"
+        end_date::text AS "endDate",
+        is_default AS "isDefault"
       FROM volunteer_years
       ORDER BY start_date ASC
     `;
@@ -1225,7 +1227,8 @@ export class NeonVolunteerRepository implements VolunteerRepository {
         id,
         label,
         start_date::text AS "startDate",
-        end_date::text AS "endDate"
+        end_date::text AS "endDate",
+        is_default AS "isDefault"
     `;
 
     const row = rows[0];
@@ -1285,7 +1288,8 @@ export class NeonVolunteerRepository implements VolunteerRepository {
         y.id,
         y.label,
         y.start_date::text AS "startDate",
-        y.end_date::text AS "endDate"
+        y.end_date::text AS "endDate",
+        y.is_default AS "isDefault"
     `;
     const row = updated[0];
 
@@ -1327,6 +1331,34 @@ export class NeonVolunteerRepository implements VolunteerRepository {
     `;
 
     return found.length > 0 ? "in_use" : "not_found";
+  }
+
+  async setDefaultYear(id: string | null): Promise<boolean> {
+    if (id === null) {
+      await this.sql`UPDATE volunteer_years SET is_default = false WHERE is_default`;
+      return true;
+    }
+
+    // The unique index allows one default, so the old one is cleared in the
+    // same transaction before the new one is set. The clearing statement only
+    // runs when the target exists, so a stale id never wipes the default.
+    const [, marked] = await this.sql.transaction([
+      this.sql`
+        UPDATE volunteer_years
+        SET is_default = false
+        WHERE is_default
+          AND id <> ${id}
+          AND EXISTS (SELECT 1 FROM volunteer_years WHERE id = ${id})
+      `,
+      this.sql`
+        UPDATE volunteer_years
+        SET is_default = true
+        WHERE id = ${id}
+        RETURNING id
+      `,
+    ]);
+
+    return (marked as unknown[]).length > 0;
   }
 
   async updateEvent(

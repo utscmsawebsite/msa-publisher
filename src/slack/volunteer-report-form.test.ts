@@ -3,8 +3,8 @@ import { describe, it } from "node:test";
 import { buildReportFormView } from "./volunteer-report-handlers.js";
 
 const years = [
-  { id: "y1", label: "2025/26", startDate: "2025-09-01", endDate: "2026-03-15" },
-  { id: "y2", label: "2026/27", startDate: "2026-09-01", endDate: "2027-03-15" },
+  { id: "y1", label: "2025/26", startDate: "2025-09-01", endDate: "2026-03-15", isDefault: false },
+  { id: "y2", label: "2026/27", startDate: "2026-09-01", endDate: "2027-03-15", isDefault: false },
 ];
 
 const labels = (view: { blocks?: unknown }) =>
@@ -43,5 +43,35 @@ describe("the two report forms", () => {
 
       assert.equal(year?.element?.initial_option?.value, "y1", mode);
     }
+  });
+
+  it("opens on the default year when no year is given, whichever year contains today", () => {
+    const withDefault = years.map((year) => ({ ...year, isDefault: year.id === "y1" }));
+
+    for (const mode of ["combined", "letterhead"] as const) {
+      const block = (buildReportFormView(withDefault, null, mode).blocks as Array<{ block_id?: string; element?: { initial_option?: { value: string } } }>).find(
+        (candidate) => candidate.block_id === "vol_r_year",
+      );
+
+      assert.equal(block?.element?.initial_option?.value, "y1", mode);
+    }
+  });
+
+  it("still lets a year that is being looked at override the default", () => {
+    const withDefault = years.map((year) => ({ ...year, isDefault: year.id === "y1" }));
+    const block = (buildReportFormView(withDefault, "y2").blocks as Array<{ block_id?: string; element?: { initial_option?: { value: string } } }>).find(
+      (candidate) => candidate.block_id === "vol_r_year",
+    );
+
+    assert.equal(block?.element?.initial_option?.value, "y2");
+  });
+
+  it("still offers every year, so the default is a shortcut and not a limit", () => {
+    const withDefault = years.map((year) => ({ ...year, isDefault: year.id === "y2" }));
+    const block = (buildReportFormView(withDefault).blocks as Array<{ block_id?: string; element?: { options?: unknown[] } }>).find(
+      (candidate) => candidate.block_id === "vol_r_year",
+    );
+
+    assert.equal(block?.element?.options?.length, 2);
   });
 });
