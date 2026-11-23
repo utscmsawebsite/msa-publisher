@@ -161,7 +161,7 @@ You are the only admin, so set yourself up as staff and add a volunteer year.
 
 1. Type `/volunteer-admin` -> **Staff** -> **+ Add staff member**. Pick
    yourself, enter a title (for example `Automations Director`; it is printed
-   under the signature on letters), tick **all three** permissions, click
+   under the signature on letters), tick **Exec**, **Admin** and **Primary approver**, click
    **Save**. The Staff list comes back with a ✅ line, and there is a line in the
    log channel.
 2. **← Back**, then **Years** -> **+ New year**. Label `2026/27 Volunteer Year`,
@@ -210,7 +210,7 @@ exists.
 | # | Do | Expect |
 | --- | --- | --- |
 | 1.1 | `/volunteer-admin` | Three groups: **Volunteers** (Pending requests, Log hours for someone, Find a volunteer's requests, Link to a Slack account), **Reports and letters** (CCR report, Volunteer letters), and **Setup** with a one-line summary ("Current year: ... · N staff · 3 categories · N events") and **Years / Staff / Categories / Events**. |
-| 1.2 | **Staff** -> **+ Add staff member** (or **Edit** if you are already listed). Pick yourself, title `Automations Director`, tick all three permissions -> **Save** | The Staff list returns with a ✅ line. A line appears in the log channel. |
+| 1.2 | **Staff** -> **+ Add staff member** (or **Edit** if you are already listed). Pick yourself, title `Automations Director`, tick **Exec**, **Admin** and **Primary approver** -> **Save** | The Staff list returns with a ✅ line, and you are listed as "Exec · Admin · Primary approver". A line appears in the log channel. The list also has a one-line key explaining Exec and Admin. |
 | 1.3 | **Edit** yourself, clear the title -> **Save**; edit again and put it back | The title is cleared, then restored. |
 | 1.4 | **← Back** -> **Years** | One row per year: dates, ● Current / Past / Upcoming, and totals ("N volunteers · X h approved · Y h pending · Z h sent to CCR"). **+ New year** on top. |
 | 1.5 | **+ New year**: `2027/28 Volunteer Year`, `2027-09-01` to `2028-03-15` -> **Save** | Back on the Years list with "✅ Added ...". |
@@ -257,7 +257,7 @@ exists.
 | 4.2 | **+ New volunteer** -> **High school student** -> Next -> fake details -> **Save & continue** -> add hours -> **Submit** | Saving…, then "Logged and approved…" with **Log hours for someone else** and **Admin home**. The channel card reads "Entered by you on the volunteer's behalf", shows **No Slack account**, and is **already approved with no buttons**. |
 | 4.3 | **Log hours for someone** -> type the fake name | They appear with "· no Slack". Pick them: the hours form opens at once with "Entering this for … (not on Slack)". **← Back** returns to the search. |
 | 4.4 | **+ New volunteer** again with the **same student number** | An error naming the existing person and telling you to search for them. |
-| 4.5 👀 | **Find a volunteer's requests** -> pick the fake volunteer | Their requests as cards with **Edit**. Each **pending** request also has **Approve** and **Disapprove** buttons if you are staff with "Can approve hours" (none under approved or disapproved ones, and none at all for someone who can't approve). **Edit** opens the form: "your change takes effect right away". |
+| 4.5 👀 | **Find a volunteer's requests** -> pick the fake volunteer | Their requests as cards with **Edit**. Each **pending** request also has **Approve** and **Disapprove** buttons if you are staff with the **Exec** role (none under approved or disapproved ones, and none at all for someone who can't approve). **Edit** opens the form: "your change takes effect right away". |
 | 4.5b 👀 | On that list, press **Approve** on a pending request. Then press **Disapprove** on another | Approve: the same list redraws with "✅ Approved ...", that request shows Approved and loses its buttons, the channel card becomes "Approved by you", and the volunteer gets a DM. Disapprove: the list is replaced by a reason form with **← Back**; empty is refused; with a reason the list returns with "Disapproved ...", the card shows the reason, and the DM includes it. |
 | 4.6 | Change the hours -> **Save changes** | Saving…, then a confirmation with **Back to their requests**. The channel card updates and stays approved ("Edited by you"); a line in the log channel. |
 | 4.7 | Open it again, tick **Delete this whole request instead** -> **Save changes** | The card is replaced by "Deleted by you"; the request is gone from their list; a line in the log channel. |
@@ -291,7 +291,7 @@ exists.
 | 7.1 | `/volunteer-admin` -> **Staff** -> **Edit** yourself -> **Remove from staff** (you stay admin through the env list) | Removed. |
 | 7.2 | Submit a request, then click **Approve** on its card | A private "You don't have permission to approve volunteer hours" message, and a ⚠️ line in the log channel. |
 | 7.3 | `/volunteer-exec` -> **CCR report** | Still opens, because your ID is in the admin list and admins get everything execs get. |
-| 7.4 | Add yourself back (step 1.2) with all three permissions | Everything works again. |
+| 7.4 | Add yourself back (step 1.2) with Exec, Admin and Primary approver ticked | Everything works again. |
 
 ### Things you can't test alone
 

@@ -86,7 +86,7 @@ describe("the pending queue screen", () => {
 
     assert.ok(!text(view).includes(actionIds.approve));
     assert.ok(!text(view).includes(actionIds.disapprove));
-    assert.ok(text(view).includes("only staff with the approve permission"));
+    assert.ok(text(view).includes("only Execs can approve or disapprove"));
     assert.ok(text(view).includes("Jane Doe"));
   });
 
@@ -115,9 +115,10 @@ describe("the pending queue screen", () => {
     const forExec = JSON.stringify(buildPendingView({ ...base, back: "exec" }));
 
     assert.ok(forAdmin.includes("Setup, Staff"));
-    assert.ok(forAdmin.includes("Can approve hours"));
+    assert.ok(forAdmin.includes('tick \\"Exec\\"'), "points at the Exec role on the Staff form");
+    assert.ok(!forAdmin.includes("Can approve hours"), "no stale wording");
     assert.ok(!forExec.includes("Setup, Staff"));
-    assert.ok(forExec.includes("only staff with the approve permission"));
+    assert.ok(forExec.includes("only Execs can approve or disapprove"));
     assert.ok(!forAdmin.includes(actionIds.approve), "still no buttons");
   });
 });

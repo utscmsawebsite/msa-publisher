@@ -93,8 +93,12 @@ function title(text: string): { type: "plain_text"; text: string } {
   return plain(truncate(text, 24));
 }
 
-function option(text: string, value: string) {
-  return { text: plain(truncate(text, 75)), value };
+function option(text: string, value: string, description?: string) {
+  return {
+    text: plain(truncate(text, 75)),
+    ...(description ? { description: plain(truncate(description, 75)) } : {}),
+    value,
+  };
 }
 
 function section(text: string, accessory?: object): Block {
@@ -248,15 +252,19 @@ function eventLine(event: VolunteerEvent): string {
   }${event.isActive ? "" : "  ·  _inactive_"}`;
 }
 
+/**
+ * A person's roles in plain words. Exec = can approve hours (opens
+ * /volunteer-exec); Admin = can manage setup (opens /volunteer-admin).
+ */
 export function staffRoles(member: VolunteerStaffMember): string {
   return (
     [
-      member.canApprove ? "approve" : null,
-      member.canManage ? "manage" : null,
-      member.isPrimary ? "primary" : null,
+      member.canApprove ? "Exec" : null,
+      member.canManage ? "Admin" : null,
+      member.isPrimary ? "Primary approver" : null,
     ]
       .filter(Boolean)
-      .join(", ") || "no permissions"
+      .join(" · ") || "No role"
   );
 }
 
@@ -551,6 +559,9 @@ export function buildStaffView(
             "Only the volunteer admins named in the bot's settings can change who is staff.",
           ),
         ]),
+    note(
+      "*Exec* approves hours and opens /volunteer-exec. *Admin* manages setup and opens /volunteer-admin. Admins named in Vercel can also change staff and aren't listed here.",
+    ),
     ...(shown.length === 0
       ? [section("Nobody yet.")]
       : shown.map((member) => {
@@ -573,11 +584,20 @@ export function buildStaffFormView(
     ...(member ? { id: member.slackUserId } : {}),
     back,
   };
-  const approve = option("Can approve hours", "approve");
-  const manage = option("Can manage categories, events and years", "manage");
+  const approve = option(
+    "Exec: approves hours",
+    "approve",
+    "Opens /volunteer-exec: pending requests, reports, letters.",
+  );
+  const manage = option(
+    "Admin: manages setup",
+    "manage",
+    "Opens /volunteer-admin and the exec tools. Doesn't include approving.",
+  );
   const primary = option(
-    "Primary approver (@mentioned on each request)",
+    "Primary approver",
     "primary",
+    "Gets @mentioned on each new request. Needs Exec too.",
   );
   const initial = [
     member?.canApprove ? approve : null,
@@ -602,7 +622,7 @@ export function buildStaffFormView(
       type: "input",
       block_id: adminBlockIds.flags,
       optional: true,
-      label: plain("Permissions"),
+      label: plain("Role (tick both if they do both)"),
       element: {
         type: "checkboxes",
         action_id: "flags",

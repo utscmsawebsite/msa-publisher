@@ -455,7 +455,29 @@ describe("saving a form", () => {
       { kind: "staff", id: "UNEWSTAFF1", back: "staff" },
       { ...typed(adminBlockIds.title, ""), [adminBlockIds.flags]: { flags: { selected_options: [] } } },
     );
-    assert.match(none.errors?.[adminBlockIds.flags] ?? "", /at least one permission/);
+    assert.match(none.errors?.[adminBlockIds.flags] ?? "", /at least one role: Exec or Admin/);
+
+    const primaryOnly = await submit(
+      h,
+      { kind: "staff", id: "UNEWSTAFF1", back: "staff" },
+      { ...typed(adminBlockIds.title, ""), [adminBlockIds.flags]: { flags: { selected_options: [{ value: "manage" }, { value: "primary" }] } } },
+    );
+    assert.match(primaryOnly.errors?.[adminBlockIds.flags] ?? "", /primary approver must also be an Exec/);
+  });
+
+  it("confirms a saved person's roles in plain words", async () => {
+    const saved = await submit(
+      h,
+      { kind: "staff", back: "staff" },
+      {
+        [adminBlockIds.user]: { user: { selected_user: "UNEWSTAFF2" } },
+        ...typed(adminBlockIds.title, "Treasurer"),
+        [adminBlockIds.flags]: { flags: { selected_options: [{ value: "approve" }, { value: "manage" }, { value: "primary" }] } },
+      },
+    );
+
+    assert.ok(text(saved.view).includes("Exec · Admin · Primary approver"), text(saved.view));
+    assert.ok(!text(saved.view).includes("can approve"));
   });
 
   it("won't let someone who isn't a settings-named admin change staff", async () => {

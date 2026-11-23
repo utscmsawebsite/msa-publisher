@@ -91,11 +91,11 @@ export class VolunteerAdminService {
     }
 
     if (!input.canApprove && !input.canManage) {
-      return fail("Give them at least one permission (approve or manage).");
+      return fail("Tick at least one role: Exec or Admin.");
     }
 
     if (input.isPrimary && !input.canApprove) {
-      return fail("The primary approver must be able to approve.");
+      return fail("The primary approver must also be an Exec, since they approve hours.");
     }
 
     const title = input.title === null ? null : clean(input.title);
@@ -119,12 +119,12 @@ export class VolunteerAdminService {
     return succeed(
       `Saved <@${input.slackUserId}>${title ? ` (${title})` : ""}: ${
         [
-          input.canApprove ? "can approve" : null,
-          input.canManage ? "can manage" : null,
-          input.isPrimary ? "primary approver" : null,
+          input.canApprove ? "Exec" : null,
+          input.canManage ? "Admin" : null,
+          input.isPrimary ? "Primary approver" : null,
         ]
           .filter(Boolean)
-          .join(", ") || "no permissions"
+          .join(" · ") || "No role"
       }.`,
     );
   }

@@ -534,7 +534,7 @@ describe("the app's buttons and forms, wired together", () => {
 
       assert.ok(text(lastView()).includes("Queue test"));
       assert.ok(!text(lastView()).includes(actionIds.approve));
-      assert.ok(text(lastView()).includes("only staff with the approve permission"));
+      assert.ok(text(lastView()).includes("only Execs can approve or disapprove"));
     });
 
     it("someone who isn't an exec can't open it", async () => {

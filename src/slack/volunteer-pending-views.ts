@@ -76,9 +76,9 @@ export function buildPendingView(screen: PendingScreen): ModalView {
         {
           type: "mrkdwn",
           text:
-            "You can see the queue, but only staff with the approve permission can approve or disapprove." +
+            "You can see the queue, but only Execs can approve or disapprove." +
             (screen.back === "pending:admin" || screen.back === "admin"
-              ? " Admins can give themselves this under Setup, Staff (tick \"Can approve hours\")."
+              ? " Admins can give themselves this under Setup, Staff (tick \"Exec\")."
               : ""),
         },
       ],

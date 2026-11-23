@@ -136,7 +136,7 @@ In the community workspace, with nothing running on your laptop:
 | --- | --- |
 | `/volunteer` | The home screen opens. |
 | `/volunteer-admin` | The admin home opens. |
-| **Staff** -> add yourself with all three permissions | ✅, and a line in the log channel. |
+| **Staff** -> add yourself and tick **Exec**, **Admin** and **Primary approver** | ✅, and a line in the log channel. |
 | **Years** -> **+ New year** (for example `2026/27 Volunteer Year`) | ✅ Added. |
 | Log hours -> pick **Specific Event** | The Event dropdown appears. |
 | **Log hours for someone** -> type in the search box | Matching people appear (this proves the Options Load URL). |
@@ -152,11 +152,15 @@ like `volunteer_hub_open_failed`. Send me those lines, never a token.
 If you did the smoke test with real details, you are already done with these:
 
 1. `/volunteer-admin` -> **Staff**: add each approver and exec (title, then
-   permissions). Admins (the env list) can open every screen and manage setup,
-   but **approving hours needs a Staff entry with "Can approve hours"**, even for
-   an admin. Add yourself too, or Approve and Disapprove won't work for you (you
-   will see "You don't have permission to approve volunteer hours", and the
-   Pending requests screen shows no buttons). The production staff list starts empty.
+   role). **Exec** approves hours and opens `/volunteer-exec`; **Admin** manages
+   setup and opens `/volunteer-admin` (it includes the exec tools but not
+   approving); **Primary approver** is the person @mentioned on each new request
+   and needs Exec too. Admins named in the bot's settings (the env list) can open
+   every screen and change staff, but **approving hours needs a Staff entry with
+   the Exec role**, even for them. Add yourself too, or Approve and Disapprove
+   won't work for you (you will see "You don't have permission to approve volunteer
+   hours", and the Pending requests screen shows no buttons). The production staff
+   list starts empty.
 2. **Years**: create the real volunteer year(s).
 3. **Events**: add the events volunteers can pick for "Specific Event".
 4. Tell volunteers to use `/volunteer` in the community workspace.
